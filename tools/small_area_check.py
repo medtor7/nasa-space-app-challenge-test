@@ -37,7 +37,8 @@ def main(path):
 
     def predict(tr, te):
         pooled = tr.V.sum() / tr.M.sum()
-        fm = tr.groupby("month").apply(lambda x: x.V.sum() / x.M.sum(), include_groups=False)
+        gm = tr.groupby("month")[["V", "M"]].sum()
+        fm = gm.V / gm.M
         return te.M * te.month.map(fm).fillna(pooled)
 
     schemes = {
