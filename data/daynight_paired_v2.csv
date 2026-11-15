@@ -1,0 +1,7 @@
+scheme,level,folds,mean_diff,se
+1,region,1,7.5,
+1,square,1,9.5,
+2,region,11,3.4,1.1
+2,square,11,4.7,1.5
+3,region,14,2.6,1.0
+3,square,14,3.8,1.1

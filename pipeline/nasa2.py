@@ -23,6 +23,10 @@ This notebook produces every data file the app ships with, from the NASA FIRMS A
   5. Checks: alternative counting measures (points, total FRP, cell-days), Terra vs. Aqua counts,
      small-area (1 deg) errors, the 2001 factors, and the Terra-only held-out test
      (Terra counts x Terra-only factors vs. Terra counts x Terra+Aqua factors).
+  6. Day/night test (last cell): monthly factor (V0) vs. separate day and night monthly factors
+     (V2) on the raw records, region and 1 deg blocks, three schemes, paired fold differences.
+     The cell prints its results; they are transcribed in data/daynight_test_v2.csv,
+     data/daynight_paired_v2.csv and data/daynight_factors_v2.csv.
 
 Requirements: a free NASA FIRMS MAP_KEY stored in Colab Secrets as FIRMS_KEY (it is never written
 in this file), Google Drive, pandas, numpy, matplotlib, requests.
@@ -35,7 +39,6 @@ the team ran it on the real FIRMS data.
 Original file is located at
     https://colab.research.google.com/drive/1Da6wcVrJvy2pvKdAyQ0LV_dP-phbHrnE
 """
-
 
 # Drive’ı bağlar, API fonksiyonunu tanımlar ve küçük bir test yapar.
 
@@ -934,3 +937,139 @@ for sname, scheme in schemes:
     d = fa - fb
     se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
     print(f'{sname:26s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
+
+import glob
+import numpy as np
+import pandas as pd
+from google.colab import drive
+
+drive.mount('/content/drive')
+RAW = '/content/drive/MyDrive/nasa_v2/raw/'
+
+def load(source):
+    frames = []
+    for f in sorted(glob.glob(f'{RAW}{source}_*.csv')):
+        try:
+            frames.append(pd.read_csv(f))
+        except pd.errors.EmptyDataError:
+            pass
+    return pd.concat(frames, ignore_index=True)
+
+modis = load('MODIS_SP')
+viirs = load('VIIRS_SNPP_SP')
+modis['confidence'] = pd.to_numeric(modis['confidence'], errors='coerce')
+modis = modis[(modis['confidence'] >= 30) & (modis['type'] == 0)].copy()
+viirs = viirs[viirs['confidence'].astype(str).str.lower().isin(['n', 'h', 'nominal', 'high'])
+              & (viirs['type'] == 0)].copy()
+print('Temiz tespit sayısı:', len(modis), len(viirs), '(beklenen: 284313 590023)')
+
+def prep(d):
+    d = d.copy()
+    dt = pd.to_datetime(d['acq_date'])
+    d['year'] = dt.dt.year
+    d['month'] = dt.dt.month
+    d['blok'] = (np.floor(d['latitude']).astype(int).astype(str) + '_' +
+                 np.floor(d['longitude']).astype(int).astype(str))
+    d['dn'] = d['daynight'].astype(str).str.upper().str[0]
+    return d[d['year'].between(2012, 2025)]
+
+modis = prep(modis)
+viirs = prep(viirs)
+print('daynight değerleri (MODIS, VIIRS):', sorted(modis['dn'].unique()), sorted(viirs['dn'].unique()))
+
+# Blok x ay tablosu (sıfırlar dahil), gündüz ve gece ayrı
+key = ['blok', 'year', 'month']
+parts = {'V':  viirs.groupby(key).size(),
+         'Vd': viirs[viirs['dn'] == 'D'].groupby(key).size(),
+         'Vn': viirs[viirs['dn'] == 'N'].groupby(key).size(),
+         'M':  modis.groupby(key).size(),
+         'Md': modis[modis['dn'] == 'D'].groupby(key).size(),
+         'Mn': modis[modis['dn'] == 'N'].groupby(key).size()}
+tab = pd.concat(parts, axis=1).fillna(0).reset_index()
+tot = tab.groupby(['year', 'month'])[['V', 'M']].sum()
+ok = tot[(tot['V'] > 0) & (tot['M'] > 0)].reset_index()[['year', 'month']]
+tam = pd.DataFrame({'blok': tab['blok'].unique()}).merge(ok, how='cross')
+tab = tam.merge(tab, on=key, how='left').fillna(0)
+print('Gündüz+gece toplamı ile toplam arasında fark olan satır sayısı:',
+      int(((tab['Vd'] + tab['Vn'] != tab['V']) | (tab['Md'] + tab['Mn'] != tab['M'])).sum()))
+
+# Tanı: gündüz ve gece faktörleri, gece payı (2012-2025)
+ga = tab.groupby('month')[['V', 'Vd', 'Vn', 'M', 'Md', 'Mn']].sum()
+diag = pd.DataFrame({'k_gunduz': ga['Vd'] / ga['Md'], 'k_gece': ga['Vn'] / ga['Mn'],
+                     'k_toplam': ga['V'] / ga['M'],
+                     'gece_payi_VIIRS_%': ga['Vn'] / ga['V'] * 100,
+                     'gece_payi_MODIS_%': ga['Mn'] / ga['M'] * 100}).round(2)
+print('\nAylık faktörler ve gece payları:')
+print(diag)
+
+def rm(tr, num, den):
+    g = tr.groupby('month')[[num, den]].sum()
+    return g[num] / g[den].replace(0, np.nan)
+
+def pred_V0(tr, te):
+    return te['M'] * te['month'].map(rm(tr, 'V', 'M'))
+
+def pred_V2(tr, te):
+    kd = rm(tr, 'Vd', 'Md')
+    kn = rm(tr, 'Vn', 'Mn')
+    return (te['Md'] * te['month'].map(kd)).fillna(0) + (te['Mn'] * te['month'].map(kn)).fillna(0)
+
+models = {'V0 aylık faktör (mevcut)': pred_V0, 'V2 gündüz/gece ayrı faktör': pred_V2}
+
+def fixed():
+    yield tab[tab['year'] <= 2018], tab[tab['year'] >= 2019]
+
+def expanding():
+    for y in range(2015, 2026):
+        yield tab[tab['year'] < y], tab[tab['year'] == y]
+
+def loyo():
+    for y in range(2012, 2026):
+        yield tab[tab['year'] != y], tab[tab['year'] == y]
+
+def run(model, scheme):
+    rs = []
+    for i, (tr, te) in enumerate(scheme()):
+        r = te[['blok', 'year', 'month', 'V']].copy()
+        r['P'] = np.asarray(model(tr, te))
+        r['fold'] = i
+        rs.append(r)
+    return pd.concat(rs)
+
+def wape(r):
+    return (r['P'] - r['V']).abs().sum() / r['V'].sum() * 100
+
+def bias(r):
+    return (r['P'].sum() - r['V'].sum()) / r['V'].sum() * 100
+
+def region(r):
+    return r.groupby(['fold', 'year', 'month'])[['V', 'P']].sum().reset_index()
+
+def fold_wape(r, level):
+    out = {}
+    for f, s in r.groupby('fold'):
+        if level == 'bolge':
+            s = s.groupby(['year', 'month'])[['V', 'P']].sum().reset_index()
+        out[f] = wape(s)
+    return pd.Series(out)
+
+schemes = (('Sabit', fixed), ('Ileriye genisleyen', expanding), ('Her yili disarida birak', loyo))
+cache, rows = {}, []
+for sname, scheme in schemes:
+    for mname, m in models.items():
+        r = run(m, scheme)
+        cache[(sname, mname)] = r
+        rg = region(r)
+        rows.append({'sema': sname, 'model': mname,
+                     'bolge_WAPE': wape(rg), 'bolge_bias': bias(rg),
+                     'blok_WAPE': wape(r), 'blok_bias': bias(r)})
+print('\nModel karşılaştırması:')
+print(pd.DataFrame(rows).round(1).to_string(index=False))
+
+print('\nEşleştirilmiş WAPE farkı (V2 - V0), yıllık katlar üzerinden:')
+for sname, scheme in schemes:
+    for level in ('bolge', 'blok'):
+        d = (fold_wape(cache[(sname, 'V2 gündüz/gece ayrı faktör')], level)
+             - fold_wape(cache[(sname, 'V0 aylık faktör (mevcut)')], level))
+        se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
+        print(f'{sname:26s} {level:6s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
