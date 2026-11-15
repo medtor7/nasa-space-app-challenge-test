@@ -1,0 +1,264 @@
+{
+ "default_minInt20": {
+  "params": {
+   "y0": 2003,
+   "y1": 2025,
+   "zThr": 2,
+   "minInt": 20
+  },
+  "critical_js_index": [
+   24,
+   25,
+   26,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41
+  ],
+  "core_js_index": [
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39
+  ],
+  "critical_week_1based": [
+   25,
+   26,
+   27,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42
+  ],
+  "core_week_1based": [
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40
+  ],
+  "anomaly_count": 10,
+  "anomalies": [
+   {
+    "year": 2025,
+    "week_js": 10,
+    "week_1based": 11,
+    "intensity": 893,
+    "z": 2.71
+   },
+   {
+    "year": 2012,
+    "week_js": 16,
+    "week_1based": 17,
+    "intensity": 671,
+    "z": 2.64
+   },
+   {
+    "year": 2009,
+    "week_js": 38,
+    "week_1based": 39,
+    "intensity": 10906.5,
+    "z": 2.31
+   },
+   {
+    "year": 2009,
+    "week_js": 40,
+    "week_1based": 41,
+    "intensity": 5842.2,
+    "z": 2.24
+   },
+   {
+    "year": 2019,
+    "week_js": 27,
+    "week_1based": 28,
+    "intensity": 2342,
+    "z": 2.24
+   },
+   {
+    "year": 2011,
+    "week_js": 36,
+    "week_1based": 37,
+    "intensity": 7200.7,
+    "z": 2.21
+   },
+   {
+    "year": 2011,
+    "week_js": 39,
+    "week_1based": 40,
+    "intensity": 8038.1,
+    "z": 2.21
+   },
+   {
+    "year": 2009,
+    "week_js": 39,
+    "week_1based": 40,
+    "intensity": 7687.9,
+    "z": 2.15
+   },
+   {
+    "year": 2012,
+    "week_js": 14,
+    "week_1based": 15,
+    "intensity": 556,
+    "z": 2.14
+   },
+   {
+    "year": 2011,
+    "week_js": 35,
+    "week_1based": 36,
+    "intensity": 7142.6,
+    "z": 2.08
+   }
+  ]
+ },
+ "minInt5": {
+  "params": {
+   "y0": 2003,
+   "y1": 2025,
+   "zThr": 2,
+   "minInt": 5
+  },
+  "critical_js_index": [
+   24,
+   25,
+   26,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41
+  ],
+  "core_js_index": [
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39
+  ],
+  "critical_week_1based": [
+   25,
+   26,
+   27,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42
+  ],
+  "core_week_1based": [
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40
+  ],
+  "anomaly_count": 10,
+  "anomalies": [
+   {
+    "year": 2025,
+    "week_js": 10,
+    "week_1based": 11,
+    "intensity": 893,
+    "z": 2.71
+   },
+   {
+    "year": 2012,
+    "week_js": 16,
+    "week_1based": 17,
+    "intensity": 671,
+    "z": 2.64
+   },
+   {
+    "year": 2009,
+    "week_js": 38,
+    "week_1based": 39,
+    "intensity": 10906.5,
+    "z": 2.31
+   },
+   {
+    "year": 2009,
+    "week_js": 40,
+    "week_1based": 41,
+    "intensity": 5842.2,
+    "z": 2.24
+   },
+   {
+    "year": 2019,
+    "week_js": 27,
+    "week_1based": 28,
+    "intensity": 2342,
+    "z": 2.24
+   },
+   {
+    "year": 2011,
+    "week_js": 36,
+    "week_1based": 37,
+    "intensity": 7200.7,
+    "z": 2.21
+   },
+   {
+    "year": 2011,
+    "week_js": 39,
+    "week_1based": 40,
+    "intensity": 8038.1,
+    "z": 2.21
+   },
+   {
+    "year": 2009,
+    "week_js": 39,
+    "week_1based": 40,
+    "intensity": 7687.9,
+    "z": 2.15
+   },
+   {
+    "year": 2012,
+    "week_js": 14,
+    "week_1based": 15,
+    "intensity": 556,
+    "z": 2.14
+   },
+   {
+    "year": 2011,
+    "week_js": 35,
+    "week_1based": 36,
+    "intensity": 7142.6,
+    "z": 2.08
+   }
+  ]
+ }
+}

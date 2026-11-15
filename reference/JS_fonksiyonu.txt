@@ -1,0 +1,49 @@
+function analyze(rows, y0 = 2003, y1 = 2025, zThr = 2, minInt = 20) {
+  const nY = y1 - y0 + 1;
+  const m = Array.from({ length: nY }, () => new Array(52).fill(0));
+
+  // 1) Haftalık yoğunluk matrisi (yıl x hafta)
+  for (const r of rows) {
+    const d = new Date(r.date + 'T00:00:00Z');
+    const y = d.getUTCFullYear();
+    if (y < y0 || y > y1) continue;
+    const doy0 = Math.floor((d - Date.UTC(y, 0, 1)) / 86400000);
+    m[y - y0][Math.min(Math.floor(doy0 / 7), 51)] += r.intensity;
+  }
+
+  const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+  const sd = a => {
+    const mu = mean(a);
+    return Math.sqrt(a.reduce((s, x) => s + (x - mu) ** 2, 0) / (a.length - 1));
+  };
+
+  // 2) Her hafta için z-skoru ve tipik değer (log uzayında)
+  const z = m.map(() => new Array(52).fill(0));
+  const clim = new Array(52).fill(0);
+  for (let w = 0; w < 52; w++) {
+    const L = m.map(row => Math.log1p(row[w]));
+    const mu = mean(L), s = sd(L);
+    clim[w] = Math.expm1(mu);
+    if (s > 0) for (let i = 0; i < nY; i++) z[i][w] = (L[i] - mu) / s;
+  }
+
+  // 3) 3 haftalık yumuşatma
+  const smooth = clim.map((_, w) =>
+    mean(clim.slice(Math.max(w - 1, 0), Math.min(w + 2, 52))));
+  const peak = Math.max(...smooth);
+
+  // 4) İki kademeli sezon: geniş (>= %50) ve çekirdek (>= %75)
+  const tier = t => smooth.map((v, w) => (v >= t * peak ? w : -1)).filter(w => w >= 0);
+  const critical = peak > 0 ? tier(0.5) : [];
+  const core = peak > 0 ? tier(0.75) : [];
+
+  // 5) Anomaliler
+  const anomalies = [];
+  for (let i = 0; i < nY; i++)
+    for (let w = 0; w < 52; w++)
+      if (z[i][w] >= zThr && m[i][w] >= minInt)
+        anomalies.push({ year: y0 + i, week: w, intensity: m[i][w], z: z[i][w] });
+  anomalies.sort((a, b) => b.z - a.z);
+
+  return { weekly: m, z, clim: smooth, critical, core, anomalies };
+}

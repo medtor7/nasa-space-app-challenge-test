@@ -1,0 +1,851 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Burning Activity Calendar – harmonized MODIS + VIIRS</title>
+<meta name="description" content="Interactive burning-activity calendar for Türkiye and surroundings, 2000–2025: NASA FIRMS MODIS and VIIRS hotspots harmonized into one comparable series. NASA Space Apps Challenge 2026.">
+<!-- AI/SI disclosure (NASA Space Apps 2026): the code of this page and of the helper scripts in tools/ was written with the help of AI tools (Claude by Anthropic, Gemini by Google). Data: NASA FIRMS and NASA GIBS. Details in README.md. -->
+<meta name="theme-color" content="#14110f">
+<link rel="stylesheet" href="libs/leaflet.css"><link rel="stylesheet" href="libs/leaflet-geoman.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<style>
+:root{--soot:#14110f;--glass:rgba(20,17,15,.86);--ash:#2a2420;--ash2:#372f2a;--line:rgba(243,236,228,.14);--bone:#f3ece4;--smoke:#b3a99e;--ember:#ff5a1f;--glow:#ffb347;--sky:#8fd3ff;
+ --side:0px;--calh:0px;--ease:cubic-bezier(.2,.8,.2,1);
+ --disp:'Barlow Condensed','Arial Narrow','Roboto Condensed','Inter Display',sans-serif;--body:Barlow,'Segoe UI',Inter,system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0;font-family:var(--body)}
+html,body{height:100%;overflow:hidden}
+body{background:var(--soot);color:var(--bone);font-size:14px;line-height:1.45}
+a{color:var(--sky)}
+h1,h2,h3,h4{font-family:var(--disp);font-weight:700;letter-spacing:.005em;line-height:1.05}
+button,select,input{background:rgba(243,236,228,.07);color:var(--bone);border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:.82rem;transition:background .18s,border-color .18s,color .18s,transform .18s var(--ease)}
+select option{background:var(--ash);color:var(--bone)}
+input{width:74px}input[type=checkbox]{width:16px;height:16px;accent-color:var(--ember);flex:none}input[type=range]{padding:0;width:130px;accent-color:var(--ember);border:0;background:none}
+button{cursor:pointer;font-weight:600}
+button:hover{background:rgba(243,236,228,.14);border-color:rgba(243,236,228,.3)}
+button:active{transform:scale(.97)}
+button.on{background:var(--ember);border-color:var(--ember);color:#1b0b03}
+:focus-visible{outline:2px solid var(--glow);outline-offset:2px}
+small,.mut{color:var(--smoke);font-size:.78rem;line-height:1.5}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.badge{font-variant-numeric:tabular-nums;font-size:.78rem;color:var(--bone)}
+.big{font-family:var(--disp);font-size:1.9rem;font-weight:700;line-height:1}
+li{margin:4px 0 4px 18px;font-size:.84rem}
+code{font-size:.92em;background:rgba(243,236,228,.08);padding:0 4px;border-radius:4px}
+
+/* map fills the screen; everything else floats on it */
+#map{position:fixed;inset:0;z-index:0;background:#0b0a09}
+body::before{content:'';position:fixed;inset:0 0 auto 0;height:130px;z-index:5;pointer-events:none;background:linear-gradient(rgba(8,6,5,.72),transparent)}
+.glass{background:var(--glass);border:1px solid var(--line);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);box-shadow:0 18px 50px -18px rgba(0,0,0,.75)}
+
+#top{position:fixed;z-index:20;top:0;left:0;right:0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;pointer-events:none}
+#top>*{pointer-events:auto}
+#brand{display:flex;align-items:center;gap:10px;animation:drop .7s var(--ease) both}
+#brand .mark{width:38px;height:38px;fill:var(--ember);filter:drop-shadow(0 0 14px rgba(255,90,31,.55))}
+#brand h1{font-size:1.75rem;font-weight:800;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+#brand p{font-size:.8rem;color:var(--bone);opacity:.82;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#stat{display:flex;gap:12px;align-items:center;padding:7px 14px;border-radius:999px;font-size:.8rem;white-space:nowrap;max-width:46vw;overflow:hidden;animation:drop .7s var(--ease) .08s both}
+#stat #sum{color:var(--smoke);overflow:hidden;text-overflow:ellipsis}
+#acts{display:flex;gap:8px;animation:drop .7s var(--ease) .14s both}
+#acts button{display:flex;align-items:center;gap:7px;height:38px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#acts button:hover{background:var(--ember);border-color:var(--ember);color:#1b0b03}
+#acts .ic{width:17px;height:17px}
+#lang{min-width:44px;justify-content:center;font-family:var(--disp);font-size:1rem}
+@keyframes drop{from{opacity:0;transform:translateY(-14px)}}
+@keyframes rise{from{opacity:0;transform:translateY(26px)}}
+
+#err{position:fixed;z-index:70;top:0;left:0;right:0;background:#7f1d1d;color:#fff;padding:10px 16px;display:none}
+#hint{position:fixed;z-index:45;top:70px;left:50%;transform:translateX(-50%);width:min(620px,calc(100vw - 24px));padding:14px 16px;border-radius:14px;font-size:.86rem;animation:rise .6s var(--ease) .5s both}
+#hint[hidden]{display:none}
+#hint button{margin-top:10px;background:var(--ember);border-color:var(--ember);color:#1b0b03}
+
+/* icon dock */
+#dockw{position:fixed;z-index:35;left:12px;right:calc(var(--side) + 12px);bottom:calc(var(--calh) + 12px);display:flex;justify-content:center;pointer-events:none;transition:bottom .5s var(--ease),right .5s var(--ease)}
+#dock{pointer-events:auto;display:flex;gap:2px;padding:5px;border-radius:17px;max-width:100%;overflow-x:auto;scrollbar-width:none;animation:rise .7s var(--ease) .2s both}
+#dock::-webkit-scrollbar{display:none}
+#dock>button{flex:none;width:72px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:none;border-radius:12px;font-size:.7rem;font-weight:500;color:var(--bone);padding:0 2px}
+#dock>button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#dock>button:hover{background:rgba(243,236,228,.1);transform:translateY(-2px)}
+#dock>button:hover .ic{color:var(--glow)}
+#dock>button.on{background:var(--ember);color:#1b0b03}
+#dock>button.on .ic{color:#1b0b03}
+#dock i{flex:none;width:1px;margin:8px 4px;background:var(--line)}
+#vmenu{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translate(-50%,8px);display:flex;gap:6px;padding:6px;border-radius:13px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s,transform .3s var(--ease),visibility 0s .3s}
+#vmenu.on{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0);transition:opacity .2s,transform .3s var(--ease)}
+#toast{position:fixed;z-index:50;left:50%;bottom:calc(var(--calh) + 88px);transform:translate(-50%,10px);padding:9px 16px;border-radius:999px;font-size:.84rem;opacity:0;pointer-events:none;transition:opacity .25s,transform .35s var(--ease);max-width:calc(100vw - 24px);text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* side panel */
+#side{position:fixed;z-index:30;top:76px;right:12px;bottom:12px;width:420px;max-width:calc(100vw - 24px);display:flex;flex-direction:column;border-radius:18px;overflow:hidden;transform:translateX(calc(100% + 24px));opacity:0;visibility:hidden;transition:transform .5s var(--ease),opacity .3s,visibility 0s .5s}
+#side.open{transform:none;opacity:1;visibility:visible;transition:transform .5s var(--ease),opacity .3s}
+#side.wide{width:min(780px,calc(100vw - 24px))}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:1.65rem;font-weight:800}
+.icb{flex:none;width:34px;height:34px;padding:0;display:grid;place-items:center;border-radius:50%}
+.icb .ic{width:17px;height:17px}
+.pb{flex:1;overflow-y:auto;padding:14px 16px 20px;scrollbar-width:thin;scrollbar-color:var(--ash2) transparent}
+.pane{display:none}.pane.on{display:block;animation:paneIn .45s var(--ease) both}
+@keyframes paneIn{from{opacity:0;transform:translateY(10px)}}
+.pane h3{font-size:1.12rem;margin:18px 0 8px;color:var(--bone)}
+.pane h3:first-child{margin-top:0}
+.pane>p{font-size:.86rem;margin-bottom:10px;color:var(--bone)}
+.pane label{font-size:.84rem}
+.pane label.row{cursor:pointer;align-items:flex-start;flex-wrap:nowrap;gap:8px}
+.grp{background:rgba(243,236,228,.045);border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.st{background:rgba(243,236,228,.045);border:1px solid var(--line);border-radius:13px;padding:10px 12px;min-width:0}
+.st.w2{grid-column:1/-1}
+.st small{display:block}
+.st b{display:block;font-size:.95rem;font-weight:600;overflow-wrap:anywhere}
+.st b.num{font-family:var(--disp);font-size:2.1rem;font-weight:800;line-height:1.05;color:var(--glow)}
+.st .sub{color:var(--sky);font-size:.76rem}
+.half{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.half>div{min-width:0}
+#side.wide .half{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#p-meth>details>summary{display:none}
+#al ul{list-style:none}#al li{margin:0;padding:8px 10px;border-radius:9px;border:1px solid transparent;transition:background .18s,border-color .18s}
+#al li:hover{background:rgba(255,90,31,.14);border-color:rgba(255,90,31,.45)}
+.dlb{display:grid;gap:8px}.dlb button{display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:11px 12px;text-align:left}
+.drawb{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+details summary{cursor:pointer;font-weight:600}
+details p{margin:8px 0;line-height:1.55;font-size:.84rem}
+.val-imgs{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+#side.wide .val-imgs{grid-template-columns:1fr 1fr}
+.val-imgs img{width:100%;border-radius:8px;border:1px solid var(--line);background:#fff;display:block;margin-top:4px}
+.vtw{overflow-x:auto;margin:6px 0 4px}
+table.vt{border-collapse:collapse;font-size:.8rem;width:100%;min-width:600px}
+table.vt th,table.vt td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+table.vt thead th,table.vt th.rh{background:rgba(0,0,0,.35);color:var(--bone);font-weight:600;vertical-align:bottom}
+table.vt th.rh{text-align:left}
+table.vt td{font-variant-numeric:tabular-nums}
+table.vt tr.used th.rh{border-left:3px solid var(--ember)}
+table.vt small{display:block;font-weight:400;color:var(--smoke);font-size:.72rem;line-height:1.35}
+.vbox h4{font-size:1.08rem;margin:16px 0 6px}
+.vbox ul{margin:6px 0}.vbox p.cap{margin:6px 0}
+details.vals{margin:6px 0}details.vals summary{color:var(--sky);font-size:.8rem;font-weight:500}
+#ref{margin-top:12px;padding:10px 12px;border-left:3px solid var(--ember);background:rgba(255,90,31,.08);border-radius:0 9px 9px 0}
+
+/* calendar drawer */
+#cald{position:fixed;z-index:25;left:12px;right:calc(var(--side) + 12px);bottom:12px;height:0;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;transform:translateY(calc(100% + 24px));opacity:0;visibility:hidden;transition:transform .5s var(--ease),opacity .3s,right .5s var(--ease),height .45s var(--ease),visibility 0s .5s}
+#cald.open{transform:none;opacity:1;visibility:visible;transition:transform .5s var(--ease),opacity .3s,right .5s var(--ease),height .45s var(--ease)}
+.dh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px 8px 16px}
+.dh h2{font-size:1.45rem;font-weight:800;margin-right:4px}
+.dh .seg{display:flex;gap:4px}
+.dh .scale{display:flex;align-items:center;gap:6px}
+.dh .sp{flex:1}
+.lg{height:9px;width:150px;border-radius:5px;background:linear-gradient(90deg,#420a68 0%,#932667 25%,#dd513a 50%,#fca50a 75%,#fcffa4 100%)}
+.lgw{position:relative;padding-bottom:13px}
+.lz{display:inline-block;width:9px;height:9px;border-radius:2px;background:#211c19;border:1px solid #6f665e}
+.lt{position:absolute;left:0;right:0;top:11px;height:11px;font-size:9px;line-height:11px;color:#a89d92;pointer-events:none}
+.lt span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.lt span.e0{transform:none}.lt span.e1{transform:translateX(-100%)}
+.mlg{background:rgba(20,17,15,.78);color:var(--bone);padding:6px 10px 4px;border-radius:9px;font-size:11px;line-height:1.3;border:1px solid rgba(243,236,228,.18)}
+.mlg[hidden]{display:none}.mlg small{display:block;margin-bottom:5px}
+.mlg .lg{width:170px}
+#cald.full #cex .ic{transform:rotate(180deg)}
+#cex .ic{transition:transform .4s var(--ease)}
+.dsub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 16px 8px;min-height:30px}
+.dsub #mi{color:var(--bone)}.dsub #mclr{padding:3px 10px;border-radius:999px;border-color:var(--ember);color:var(--glow)}
+#cinfo{flex:1;min-width:200px;font-size:.82rem;color:var(--smoke)}
+#cinfo b{color:var(--glow);font-weight:600}#cinfo span{color:var(--smoke)}
+.db{flex:1;overflow:auto;padding:0 12px 10px 8px;scrollbar-width:thin;scrollbar-color:var(--ash2) transparent}
+#cal.ignite{animation:sweep 1.5s var(--ease) both}
+@keyframes sweep{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+table.cal{border-collapse:separate;border-spacing:1px;font-size:10px;width:100%;min-width:700px;table-layout:fixed}
+table.cal th:first-child{width:62px;text-align:right;padding-right:6px}
+table.cal td{height:12px;text-align:center;cursor:pointer;border-radius:2px;line-height:12px;transition:transform .12s}
+#cal[data-v=m] table.cal{min-width:520px}#cal[data-v=m] td{height:16px;line-height:16px;font-size:10px}
+table.cal td:hover{transform:scale(1.35);position:relative;z-index:1;box-shadow:0 0 0 1.5px #fff}
+table.cal td.sel{box-shadow:0 0 0 2px #fff,0 0 12px 3px var(--ember);position:relative;z-index:2}
+table.cal th{font-weight:600;color:var(--smoke);white-space:nowrap;overflow:hidden}
+table.cal tr:first-child th{position:sticky;top:0;z-index:3;background:#1a1613;height:17px;border-radius:2px}
+table.cal th.cr{background:#7a2a0b!important;color:#ffe2d2;box-shadow:inset 0 -3px var(--ember)}
+table.cal th.co{background:var(--ember)!important;color:#1b0b03;box-shadow:inset 0 -3px #fff}
+.a1{outline:1.5px dashed #fff;outline-offset:-1.5px}.a2{outline:2px solid #fff;outline-offset:-2px}
+.a3{outline:2px solid #fff;outline-offset:-2px;box-shadow:inset 0 0 0 4px #000}.a3::after{content:'★';font-size:8px}
+.lgd{display:block;padding:8px 8px 0}
+
+/* loader */
+#load{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(10,8,7,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:opacity .6s,visibility 0s .6s}
+#load.done{opacity:0;visibility:hidden;pointer-events:none}
+.lbox{display:grid;justify-items:center;gap:8px;text-align:center;padding:20px}
+.lbox svg{width:54px;height:54px;fill:var(--ember);animation:flick 1.4s ease-in-out infinite}
+.lbox b{font-family:var(--disp);font-size:2.4rem;font-weight:800;line-height:1}
+.lbox span{color:var(--smoke)}
+.lbox i{width:220px;height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,var(--ember),var(--glow),transparent);background-size:200% 100%;animation:run 1.2s linear infinite}
+@keyframes flick{50%{transform:scale(1.08) rotate(-3deg);filter:drop-shadow(0 0 18px var(--ember))}}
+@keyframes run{to{background-position:-200% 0}}
+
+/* view modes */
+body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!important;visibility:hidden!important;pointer-events:none}
+
+/* Leaflet, restyled to match */
+.leaflet-container{font-family:var(--body);background:#0b0a09}
+.leaflet-top.leaflet-left{top:74px;left:4px}
+.leaflet-bottom{bottom:var(--calh);transition:bottom .5s var(--ease)}
+.leaflet-right{right:var(--side);transition:right .5s var(--ease)}
+.leaflet-bar{border:1px solid var(--line)!important;border-radius:11px!important;overflow:hidden;box-shadow:0 10px 30px -12px rgba(0,0,0,.8)!important}
+.leaflet-bar a,.leaflet-pm-toolbar .leaflet-buttons-control-button{background:var(--glass)!important;color:var(--bone)!important;border-bottom:1px solid var(--line)!important}
+.leaflet-bar a:hover,.leaflet-pm-toolbar .leaflet-buttons-control-button:hover{background:var(--ash2)!important}
+.leaflet-pm-toolbar .control-icon{filter:invert(1) brightness(1.6)}
+.leaflet-pm-toolbar .button-container.active .leaflet-buttons-control-button{background:var(--ember)!important}
+.leaflet-control-scale-line{background:rgba(20,17,15,.7);color:var(--bone);border-color:var(--bone);text-shadow:none}
+.leaflet-control-attribution{background:rgba(20,17,15,.7)!important;color:var(--smoke)!important;font-size:10px;border-radius:8px 0 0 0}
+.leaflet-control-attribution a{color:var(--bone)}
+.leaflet-tooltip{background:var(--soot);color:var(--bone);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px -8px #000;font-variant-numeric:tabular-nums}
+.leaflet-tooltip-top:before{border-top-color:var(--soot)}.leaflet-tooltip-bottom:before{border-bottom-color:var(--soot)}.leaflet-tooltip-left:before{border-left-color:var(--soot)}.leaflet-tooltip-right:before{border-right-color:var(--soot)}
+
+@media(max-width:1100px){#stat #sum{display:none}}
+@media(max-width:760px){
+ #top{padding:8px 10px}#brand .mark{width:30px;height:30px}#brand h1{font-size:1.3rem}#brand p,#stat,#fmb span{display:none}
+ #fmb{width:38px;justify-content:center;padding:0}
+ .leaflet-top.leaflet-left{top:54px}
+ #dockw{left:8px;right:8px;bottom:8px}
+ #dock{width:100%;gap:0}#dock i{display:none}
+ #dock>button{flex:1;width:auto;min-width:0;height:46px}#dock>button span{display:none}
+ .leaflet-control-attribution{max-width:58vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .leaflet-control-scale{margin-bottom:4px!important}
+ #cald{left:8px;right:8px;bottom:68px}
+ #side{top:58px;left:8px;right:8px;bottom:68px;width:auto;max-width:none;transform:translateY(calc(100% + 80px))}
+ #side.wide{width:auto}#side.wide .half,#side.wide .val-imgs{grid-template-columns:1fr}
+ .leaflet-bottom{bottom:calc(var(--calh) + 60px)}
+ #toast{bottom:calc(var(--calh) + 74px)}
+ .dh h2{font-size:1.2rem}.dh .scale{display:none}
+ #hint{top:56px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M12.4 1.8c.7 3.9 6.1 6.3 6.1 12.1a6.5 6.5 0 0 1-13 0c0-2.6 1.3-4.300 2.700-5.600.3 2.100 1.200 3.200 2.300 3.600-.800-3.500 0-7.100 1.900-10.100z"/></symbol>
+<symbol id="i-area" viewBox="0 0 24 24"><path d="M5.500 7.500l9-3 4 6.500-3 7.500-9-2z" stroke-dasharray="2.600 2.600"/><circle cx="5.500" cy="7.500" r="1.700" fill="currentColor"/><circle cx="14.500" cy="4.500" r="1.700" fill="currentColor"/><circle cx="18.500" cy="11" r="1.700" fill="currentColor"/><circle cx="15.500" cy="18.500" r="1.700" fill="currentColor"/><circle cx="6.500" cy="16.500" r="1.700" fill="currentColor"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.500l9 5 9-5"/><path d="M3 16.500l9 5 9-5"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.500"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M7.500 14h1.500M11.300 14h1.500M15 14h1.500M7.500 17.500h1.500M11.300 17.500h1.500"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20.500h18"/><path d="M6 20V11M11 20V4.500M16 20v-7M20.500 20v-3.500"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.500v4M12 17.500v4M2.500 12h4M17.500 12h4M5.300 5.300l2.800 2.800M15.900 15.900l2.800 2.800M18.700 5.300l-2.800 2.800M8.100 15.900l-2.800 2.800"/><circle cx="12" cy="12" r="2.300" fill="currentColor"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.500h10.500a2.500 2.500 0 0 1 2.500 2.500v13H7.500A2.500 2.500 0 0 1 5 17.500z"/><path d="M5 17.500A2.500 2.500 0 0 1 7.500 15H18"/><path d="M9 8.500h5M9 11.500h3.500"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 10.500l5 5 5-5M5 20h14"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.500"/><circle cx="17.500" cy="6" r="2.500"/><circle cx="17.500" cy="18" r="2.500"/><path d="M8.200 10.800l7-3.600M8.200 13.200l7 3.600"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.300 9.300a2.800 2.800 0 1 1 4 2.600c-.900.500-1.300 1.100-1.300 2"/><path d="M12 17.300h.010"/></symbol>
+<symbol id="i-view" viewBox="0 0 24 24"><rect x="3" y="4.500" width="18" height="12" rx="2"/><path d="M8.500 20.500h7M12 16.500v4"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 4 18.500v-11A1.500 1.500 0 0 1 5.500 6H10"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="M6 14l6-6 6 6"/></symbol>
+</defs></svg>
+
+<div id="map"></div>
+<div id="load"><div class="lbox"><svg><use href="#i-flame"/></svg><b data-i="tt"></b><span data-i="load1"></span><i></i></div></div>
+<div id="err"></div>
+
+<header id="top">
+  <div id="brand"><svg class="mark"><use href="#i-flame"/></svg><div><h1 data-i="tt"></h1><p data-i="ts"></p></div></div>
+  <div id="stat" class="glass"><span id="crd" class="badge">Lat: 39.00°N, Lon: 35.00°E</span><span id="sum"></span></div>
+  <div id="acts">
+    <button id="fmb" onclick="openFIRMS()" title="Opens the official external NASA FIRMS website in a new tab (firms.modaps.eosdis.nasa.gov)"><svg class="ic"><use href="#i-ext"/></svg><span data-i="fmb"></span></button>
+    <button id="lang" onclick="toggleLang()" aria-label="Language">TR</button>
+  </div>
+</header>
+<div id="hint" class="glass" hidden><p data-i="how"></p><button onclick="hideHint()" data-i="hint_ok"></button></div>
+
+<aside id="side" class="glass" aria-label="Panel">
+  <div class="ph"><h2 id="pt"></h2><button class="icb" onclick="openPanel(null)" aria-label="Close panel"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="pb">
+
+  <section class="pane" id="p-area">
+    <p data-i="area_h"></p>
+    <h3 data-i="draw_h"></h3>
+    <div class="drawb"><button onclick="draw('Rectangle')" data-i="dr_r"></button><button onclick="draw('Polygon')" data-i="dr_p"></button><button onclick="draw('Circle')" data-i="dr_c"></button></div>
+    <h3 data-i="pre_h"></h3>
+    <div class="row">
+      <select id="pre" onchange="preset()" aria-label="Preset" style="flex:1;min-width:0"></select>
+    </div>
+    <div class="row">
+      <button onclick="resetArea()" data-i="reset"></button>
+      <button onclick="locateMe()" data-i="loc" title="Auto-detect location (100 km buffer)"></button>
+      <button onclick="saveAOI()" data-i="sav" title="Bookmark current area"></button>
+    </div>
+    <h3 data-i="crd_h"></h3>
+    <div class="row">
+      <input id="a0" placeholder="lat min" aria-label="lat min">
+      <input id="a1" placeholder="lat max" aria-label="lat max">
+      <input id="a2" placeholder="lon min" aria-label="lon min">
+      <input id="a3" placeholder="lon max" aria-label="lon max">
+      <button onclick="coords()" data-i="apply"></button>
+    </div>
+    <label class="row" style="margin-top:10px"><input type="checkbox" id="grt" onchange="toggleGrat()"><span data-i="grt"></span></label>
+  </section>
+
+  <section class="pane" id="p-data">
+    <h3 data-i="period"></h3>
+    <small data-i="ds_n" style="display:block;margin-bottom:8px"></small>
+    <div class="row"><label><span data-i="from"></span> <select id="y0" onchange="refresh()"></select></label><label><span data-i="to"></span> <select id="y1" onchange="refresh()"></select></label></div>
+    <div id="sb" class="row"></div>
+    <label class="row"><input type="checkbox" id="ns" onchange="refresh()"><span><span data-i="static"></span> <small id="nst"></small></span></label>
+    <h3 data-i="base_h"></h3>
+    <div class="row"><button id="bsat" onclick="setBase('sat')" data-i="b_sat"></button><button id="bdark" onclick="setBase('dark')" data-i="b_dark"></button></div>
+    <label class="row"><input type="checkbox" id="lblc" checked onchange="setLbl(this.checked)"><span data-i="lbl"></span></label>
+    <label class="row"><input type="checkbox" id="gibc" checked onchange="GIBSON=this.checked;updImg()"><span><span data-i="gibs"></span> <small id="gnote"></small></span></label>
+    <label class="row" style="align-items:center"><span data-i="opac"></span> <input type="range" id="opr" min=".15" max="1" step=".05" value=".75" oninput="setOpac(this.value)"> <b id="opv">75%</b></label>
+    <small data-i="tiles_n"></small>
+  </section>
+
+  <section class="pane" id="p-ins">
+    <div class="kpis">
+      <div class="st w2"><small data-i="k1"></small><b id="k1"></b><span id="k1s" class="sub"></span></div>
+      <div class="st"><small data-i="k2"></small><b id="k2" class="num"></b><span id="k2s" class="sub"></span></div>
+      <div class="st"><small data-i="k4"></small><b id="k4" class="num"></b></div>
+      <div class="st"><small data-i="k3"></small><b id="k3"></b></div>
+      <div class="st"><small data-i="k5"></small><b id="k5"></b></div>
+    </div>
+    <h3 data-i="now"></h3>
+    <div class="grp"><div class="row"><select id="cm" onchange="refresh()" aria-label="month"></select><select id="cy" onchange="refresh()" aria-label="year"></select></div><div id="nr"></div></div>
+    <h3 data-i="ch"></h3>
+    <div class="half"><div id="ch1" style="height:260px"></div><div id="ch2" style="height:260px"></div></div><small id="top5"></small>
+  </section>
+
+  <section class="pane" id="p-an">
+    <div class="row"><button id="mc" onclick="setMeth('c')" data-i="mc"></button><button id="mr" onclick="setMeth('r')" data-i="mr"></button></div>
+    <div class="grp">
+      <label class="row" style="align-items:center"><span><span data-i="zt"></span> <b id="zv"></b>)</span> <input type="range" id="z" min="2" max="5" step=".1" value="2" oninput="refresh()"></label>
+      <label class="row" style="align-items:center;margin:0"><span><span data-i="mv"></span> <b id="mv"></b></span> <input type="range" id="mi2" min="5" max="100" step="5" value="20" oninput="refresh()"></label>
+    </div>
+    <small data-i="an_h"></small>
+    <div id="al"></div>
+  </section>
+
+  <section class="pane" id="p-meth">
+    <details open><summary data-i="meth"></summary><div id="vbox" class="vbox">
+    <h4 data-i="vt_h"></h4><p data-i="vt_intro"></p>
+    <div class="vtw"><table class="vt" id="vt"></table></div>
+    <small id="vt_foot"></small>
+    <ul id="vt_notes"></ul>
+    <h4 id="rc_hd" data-i="rc_h"></h4>
+    <div id="rc" role="img" style="height:310px"></div>
+    <p id="rc_cap" class="cap"></p>
+    <details class="vals"><summary data-i="rc_tab"></summary><div class="vtw"><table class="vt" id="rc_tbl"></table></div></details>
+    </div><p id="ref"></p><div data-i="mt"></div>
+    <div class="val-imgs">
+      <div><small data-i="f1"></small><img src="fig1_v2_before_after.png" alt="Before vs After Harmonization" loading="lazy"></div>
+      <div><small data-i="f2"></small><img src="fig2_v2_monthly_factors.png" alt="Monthly Scaling Factors" loading="lazy"></div>
+      <div><small data-i="f3"></small><img src="fig3_v2_manavgat_2021.png" alt="Case Study: 2021 Manavgat Megafire" loading="lazy"></div>
+      <div><small data-i="f4"></small><img src="fig4_v2_test_period.png" alt="Held-out Test Period 2019-2025" loading="lazy"></div>
+    </div>
+    </details>
+  </section>
+
+  <section class="pane" id="p-dl">
+    <p data-i="dl_h"></p>
+    <div class="dlb">
+      <button onclick="dlRows()"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d1"></span></button>
+      <button onclick="dlSum()"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d2"></span></button>
+      <button onclick="Plotly.downloadImage('ch1',{format:'png',width:900,height:420,filename:'seasonal_cycle'})"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d3"></span></button>
+      <button onclick="Plotly.downloadImage('ch2',{format:'png',width:900,height:420,filename:'yearly_totals'})"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d4"></span></button>
+    </div>
+  </section>
+
+  <section class="pane" id="p-help">
+    <p class="how" data-i="how"></p>
+    <h3 data-i="tips_h"></h3>
+    <div data-i="tips"></div>
+    <h3 data-i="ack_h"></h3>
+    <footer class="mut" data-i="ack"></footer>
+    <p style="margin-top:10px"><small data-i="tiles_n"></small></p>
+  </section>
+
+  </div>
+</aside>
+
+<section id="cald" class="glass" aria-label="Calendar">
+  <div class="dh">
+    <h2 data-i="cal"></h2>
+    <div class="seg"><button id="vw" onclick="VIEW='w';refresh()" data-i="wk"></button><button id="vm" onclick="VIEW='m';refresh()" data-i="mo"></button></div>
+    <div class="scale" id="lgd" title=""><i class="lz"></i><small>0</small><div class="lgw"><div class="lg"></div><div class="lt" id="lt"></div></div><small data-i="more"></small></div>
+    <span class="sp"></span>
+    <button class="icb" id="cex" onclick="setCal(CALS=='full'?'open':'full')" aria-label="Expand or shrink calendar"><svg class="ic"><use href="#i-up"/></svg></button>
+    <button class="icb" onclick="setCal('closed')" aria-label="Close calendar"><svg class="ic"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="dsub"><small id="mi"></small><button id="mclr" hidden onclick="clearFocus()" data-i="all"></button><div id="cinfo" aria-live="polite"></div></div>
+  <div class="db"><div id="cal"></div><small class="lgd" data-i="legend"></small></div>
+</section>
+
+<div id="dockw">
+  <div id="vmenu" class="glass"><button id="v_def" class="on" onclick="viewMode('def')" data-i="v_def"></button><button id="v_max" onclick="viewMode('max')" data-i="v_max"></button><button onclick="viewMode('fs')" data-i="v_fs"></button></div>
+  <nav id="dock" class="glass" aria-label="Tools">
+    <button data-p="area" onclick="openPanel('area')"><svg class="ic"><use href="#i-area"/></svg><span data-i="d_area"></span></button>
+    <button data-p="data" onclick="openPanel('data')"><svg class="ic"><use href="#i-layers"/></svg><span data-i="d_data"></span></button>
+    <button id="dcal" onclick="setCal(CALS=='closed'?'open':'closed')"><svg class="ic"><use href="#i-cal"/></svg><span data-i="d_cal"></span></button>
+    <button data-p="ins" onclick="openPanel('ins')"><svg class="ic"><use href="#i-chart"/></svg><span data-i="d_ins"></span></button>
+    <button data-p="an" onclick="openPanel('an')"><svg class="ic"><use href="#i-spark"/></svg><span data-i="d_an"></span></button>
+    <button data-p="meth" onclick="openPanel('meth')"><svg class="ic"><use href="#i-book"/></svg><span data-i="d_meth"></span></button>
+    <i></i>
+    <button data-p="dl" onclick="openPanel('dl')"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d_dl"></span></button>
+    <button id="shb" onclick="shareView()"><svg class="ic"><use href="#i-share"/></svg><span data-i="d_sh"></span></button>
+    <button data-p="help" onclick="openPanel('help')"><svg class="ic"><use href="#i-help"/></svg><span data-i="d_help"></span></button>
+    <button id="dview" onclick="$('vmenu').classList.toggle('on')"><svg class="ic"><use href="#i-view"/></svg><span data-i="d_view"></span></button>
+  </nav>
+</div>
+<div id="toast" class="glass" role="status"></div>
+<script src="libs/leaflet.js"></script><script src="libs/leaflet-geoman.min.js"></script><script src="libs/plotly.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const MN={en:'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' '),tr:'Oca Şub Mar Nis May Haz Tem Ağu Eyl Eki Kas Ara'.split(' ')};
+const T={
+tt:['Burning Activity Calendar','Yangın Aktivite Takvimi'],
+ts:['25 years of harmonized MODIS + VIIRS hotspots','25 yıllık uyumlaştırılmış MODIS + VIIRS sıcak noktaları'],
+load1:['Reading 25 years of fire detections…','25 yıllık yangın tespitleri okunuyor…'],
+hint_ok:['Got it','Anladım'],
+d_area:['Area','Alan'],d_data:['Layers','Katmanlar'],d_cal:['Calendar','Takvim'],d_ins:['Insights','Özet'],d_an:['Unusual','Olağandışı'],d_meth:['Method','Yöntem'],d_dl:['Download','İndir'],d_sh:['Share','Paylaş'],d_help:['Help','Yardım'],d_view:['View','Görünüm'],
+p_data:['Data & map layers','Veri ve harita katmanları'],p_ins:['Insights for the selected area','Seçili alanın özeti'],p_help:['How to use & credits','Kullanım ve teşekkür'],
+area_h:['Choose where to look. Draw on the map, pick a ready-made region, use your location or type coordinates. The size in km² is calculated automatically.','Nereye bakacağınızı seçin. Haritada çizin, hazır bir bölge seçin, konumunuzu kullanın ya da koordinat girin. km² alanı otomatik hesaplanır.'],
+draw_h:['Draw on the map','Haritada çiz'],dr_r:['Rectangle','Dikdörtgen'],dr_p:['Polygon','Çokgen'],dr_c:['Circle','Daire'],
+pre_h:['Ready-made and saved areas','Hazır ve kayıtlı alanlar'],crd_h:['Coordinates','Koordinatlar'],
+base_h:['Map background','Harita arka planı'],b_sat:['Satellite','Uydu'],b_dark:['Dark map (works offline)','Koyu harita (çevrimdışı çalışır)'],
+lbl:['Place names and borders','Yer adları ve sınırlar'],
+gibs:['Show NASA\'s true-colour satellite image for the week or month you select in the calendar','Takvimde seçtiğiniz hafta veya ay için NASA\'nın gerçek renkli uydu görüntüsünü göster'],
+opac:['Cell opacity','Hücre saydamlığı'],
+tiles_n:['Satellite background: Esri World Imagery. Weekly true-colour image: NASA GIBS (MODIS Terra). Both load from the internet; without a connection the dark map is used.','Uydu arka planı: Esri World Imagery. Haftalık gerçek renkli görüntü: NASA GIBS (MODIS Terra). İkisi de internetten yüklenir; bağlantı yoksa koyu harita kullanılır.'],
+t_off:['Satellite tiles could not be loaded, so the dark offline map is shown.','Uydu karoları yüklenemedi; çevrimdışı koyu harita gösteriliyor.'],
+t_link:['Link copied. It reopens exactly this view.','Bağlantı kopyalandı. Tam olarak bu görünümü açar.'],
+t_draw:['Click on the map to draw the area.','Alanı çizmek için haritaya tıklayın.'],
+g_on:['Background image:','Arka plan görüntüsü:'],
+v_def:['Everything','Tüm paneller'],v_max:['Map only','Yalnızca harita'],v_fs:['Full screen','Tam ekran'],
+an_h:['Click a week to see it on the map.','Haritada görmek için bir haftaya tıklayın.'],
+dl_h:['Downloads follow your current area and years.','İndirilen dosyalar seçili alanı ve yılları izler.'],
+tips_h:['Good to know','Bilmekte fayda var'],
+tips:['<ul><li>The bar at the bottom opens every tool: area, data and layers, calendar, insights, unusual weeks, method, download, share and view.</li><li>Zoom in as far as street level. Past zoom 9 the cells become outlines so the satellite image stays visible.</li><li>Click a calendar cell to map that week. Its note (value, z-score, MODIS-scaling caveat) appears above the calendar, so it also works on touch screens.</li><li>"Share" copies a link that restores the area, years and settings.</li></ul>','<ul><li>Alttaki çubuk tüm araçları açar: alan, veri ve katmanlar, takvim, özet, olağandışı haftalar, yöntem, indirme, paylaşma ve görünüm.</li><li>Sokak düzeyine kadar yakınlaşabilirsiniz. 9. yakınlık düzeyinden sonra hücreler çerçeveye dönüşür, uydu görüntüsü görünür kalır.</li><li>Bir takvim hücresine tıklayınca o hafta haritada gösterilir. Notu (değer, z-skoru, MODIS ölçekleme uyarısı) takvimin üstünde belirir; dokunmatik ekranda da çalışır.</li><li>"Paylaş", alanı, yılları ve ayarları geri yükleyen bir bağlantı kopyalar.</li></ul>'],
+ack_h:['Data credit','Veri kaynağı'],
+ack:['<b>Acknowledgment &amp; Disclaimer:</b> We acknowledge the use of data and/or imagery from NASA\'s Fire Information for Resource Management System (FIRMS) (<a href="https://earthdata.nasa.gov/firms" target="_blank" rel="noopener" style="color:#93c5fd">earthdata.nasa.gov/firms</a>), part of NASA\'s Land, Atmosphere Near real-time Capability for Earth observations (LANCE) and NASA\'s Earth Science Data and Information System (ESDIS). External links to the official NASA FIRMS Live Map open an external NASA website. We also acknowledge the use of imagery provided by services from NASA\'s Global Imagery Browse Services (GIBS), part of NASA\'s Earth Science Data and Information System (ESDIS) (<a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener" style="color:#93c5fd">earthdata.nasa.gov/gibs</a>). Satellite background: Esri, Maxar, Earthstar Geographics. <b>AI/SI disclosure:</b> the code of this app and of its helper scripts was written with the help of AI tools (Claude by Anthropic, Gemini by Google); details are in the README. This independent NASA Space Apps Challenge student project is not officially endorsed, sponsored, or partnered with NASA.','<b>Teşekkür ve Yasal Uyarı:</b> NASA\'nın Dünya Gözlemleri İçin Kara ve Atmosfer Neredeyse Gerçek Zamanlı Kapasitesi (LANCE) ve Dünya Bilimi Veri ve Bilgi Sistemi (ESDIS) bünyesindeki Kaynak Yönetimi için Yangın Bilgi Sistemi (FIRMS) (<a href="https://earthdata.nasa.gov/firms" target="_blank" rel="noopener" style="color:#93c5fd">earthdata.nasa.gov/firms</a>) veri ve görüntülerinin kullanımını beyan ve teşekkür ederiz. Resmi NASA FIRMS Canlı Haritası bağlantıları harici bir NASA web sitesini açar. Ayrıca NASA\'nın Dünya Bilimi Veri ve Bilgi Sistemi (ESDIS) bünyesindeki Küresel Görüntü Tarama Hizmetleri (GIBS) (<a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener" style="color:#93c5fd">earthdata.nasa.gov/gibs</a>) tarafından sağlanan görüntülerin kullanımını beyan ederiz. Uydu arka planı: Esri, Maxar, Earthstar Geographics. <b>Yapay zekâ (SI) beyanı:</b> bu uygulamanın ve yardımcı betiklerin kodu yapay zekâ araçlarının (Anthropic Claude, Google Gemini) yardımıyla yazılmıştır; ayrıntılar README\'dedir. Bu bağımsız NASA Space Apps Challenge öğrenci projesi NASA tarafından resmi olarak onaylanmamış, desteklenmemiş veya ortaklık kurulmamıştır.'],
+title:['🔥 Burning Activity Calendar — harmonized MODIS + VIIRS hotspots','🔥 Yangın Aktivite Takvimi — uyumlaştırılmış MODIS + VIIRS sıcak noktaları'],
+shb:['🔗 Share View','🔗 Görünümü Paylaş'],
+fmb:['NASA FIRMS live map','NASA FIRMS canlı haritası'],
+how:['<b>How to use:</b> open <b>Area</b> in the bar below to choose where (draw a rectangle, polygon or circle on the map, pick a preset, use 📍 My Location, or type coordinates; the geodesic area in km² is calculated automatically) → open <b>Layers</b> to choose the years, sensor mode and map background → read the <b>Calendar</b>: <b>brighter = more hotspots</b>; outlined cells = unusually active weeks. <b>Click any cell</b> to map its hotspots over that week\'s NASA satellite image, or open the area in live NASA FIRMS.','<b>Nasıl kullanılır:</b> alttaki çubuktan <b>Alan</b>\'ı açıp yeri seçin (haritada dikdörtgen, çokgen veya daire çizin; hazır bölge seçin, 📍 Konumum\'u kullanın ya da koordinat girin; km² alanı otomatik hesaplanır) → <b>Katmanlar</b>\'ı açıp yılları, sensör modunu ve harita arka planını seçin → <b>Takvim</b>\'i okuyun: <b>parlak = daha çok sıcak nokta</b>; çerçeveli hücreler = olağandışı haftalar. Sıcak noktaları o haftanın NASA uydu görüntüsü üzerinde görmek için <b>herhangi bir hücreye tıklayın</b> veya alanı canlı NASA FIRMS haritasında açın.'],
+area:['Area of interest (AOI) & Measure','İlgi alanı (AOI) ve Ölçüm'],reset:['Türkiye & surroundings','Türkiye ve çevresi'],loc:['📍 My Location','📍 Konumum'],sav:['⭐ Save AOI','⭐ Alanı Kaydet'],apply:['Apply','Uygula'],all:['Show all years','Tüm yılları göster'],
+grt:['Lat/Lon Grid (2°)','Enlem/Boylam Izgarası (2°)'],
+period:['Years & data','Yıllar ve veri'],
+ds_n:['Data: NASA FIRMS archive, MODIS + VIIRS S-NPP (FIRMS API bbox 25.5–44.9°E, 35.7–42.2°N), 1 Nov 2000 – 31 Dec 2025.','Veri: NASA FIRMS arşivi, MODIS + VIIRS S-NPP (FIRMS API kutusu 25,5–44,9°D, 35,7–42,2°K), 1 Kasım 2000 – 31 Aralık 2025.'],
+from:['From','Başlangıç'],to:['To','Bitiş'],static:['Exclude recurrent-hotspot cells (repeated agricultural burns or industrial sources)','Tekrarlayan sıcak nokta hücrelerini hariç tut (tekrarlı tarım yakması veya sanayi kaynakları)'],
+se0:['Harmonized (VIIRS-equivalent)','Uyumlaştırılmış (VIIRS eşdeğeri)'],se1:['Raw MODIS','Ham MODIS'],se2:['Raw VIIRS','Ham VIIRS'],
+k1:['Area & Geodesic Size','Alan ve Jeodezik Boyut'],k2:['Hotspot-days in range','Aralıktaki sıcak nokta-günü'],k3:['Critical season (≥50% of peak)','Kritik sezon (zirvenin ≥%50 üzeri)'],k5:['Core season (≥75% of peak)','Çekirdek sezon (zirvenin ≥%75 üzeri)'],k4:['Unusual weeks','Olağandışı hafta'],
+now:['This month vs. history (median)','Bu ay ve tarihsel medyan'],cal:['Burning activity calendar','Yangın aktivite takvimi'],wk:['Weekly','Haftalık'],mo:['Monthly','Aylık'],
+click:['Click a cell → map','Hücreye tıkla → harita'],less:['fewer','az'],more:['more hotspots (log scale)','çok sıcak nokta (log ölçek)'],
+legend:['⚠ single-satellite era (2000–02) · ◇ MODIS-scaled estimate (hover or tap for its typical error) · dashed / solid / ★ outline = mild / notable / strong anomaly · header: orange = critical season (≥50% of peak), red ● = core (≥75%) · week numbers are 1–52','⚠ tek uydu dönemi (2000–02) · ◇ MODIS verisinden ölçeklenmiş tahmin (tipik hata için üzerine gelin veya dokunun) · kesikli / düz / ★ çerçeve = hafif / belirgin / güçlü anomali · başlık: turuncu = kritik sezon (zirvenin ≥%50), kırmızı ● = çekirdek (≥%75) · hafta numaraları 1–52'],
+ch:['Seasonal cycle & yearly totals','Mevsimsel döngü ve yıllık toplamlar'],an:['Unusual weeks (candidates to review, not confirmed events)','Olağandışı haftalar (incelenecek adaylar, kesin olay değil)'],
+mc:['Team reference (mean/SD, z ≥ 2)','Ekip referansı (ortalama/SS, z ≥ 2)'],mr:['Robust (median/MAD, z ≥ 3)','Dayanıklı (medyan/MAD, z ≥ 3)'],
+zt:['Sensitivity (z-score ≥','Duyarlılık (z-skoru ≥'],mv:['Min. weekly value','Min. haftalık değer'],
+dl:['Download','İndir'],d1:['Hotspot records (CSV)','Sıcak nokta kayıtları (CSV)'],d2:['Monthly summary (CSV)','Aylık özet (CSV)'],d3:['Seasonal chart (PNG)','Mevsim grafiği (PNG)'],d4:['Yearly chart (PNG)','Yıllık grafik (PNG)'],
+meth:['Method, validation & limitations','Yöntem, doğrulama ve sınırlamalar'],
+vt_h:['Validation: does the MODIS→VIIRS scaling hold up over time?','Doğrulama: MODIS→VIIRS ölçeklemesi zaman içinde tutuyor mu?'],
+vt_intro:['We scale MODIS counts to VIIRS-equivalent counts, predict the <b>monthly VIIRS totals of the whole region</b> and compare them with the real VIIRS. The table repeats this test with three different ways of splitting the years. All numbers are read from <code>data/validation_summary_v2.csv</code>.','MODIS sayılarını VIIRS eşdeğerine ölçekleyip <b>tüm bölgenin aylık VIIRS toplamlarını</b> tahmin ediyor ve gerçek VIIRS ile karşılaştırıyoruz. Tablo bu testi yılları bölmenin üç farklı yoluyla tekrarlar. Tüm sayılar <code>data/validation_summary_v2.csv</code> dosyasından okunur.'],
+vt_corner:['Scaling factor','Ölçekleme faktörü'],
+vs1:['① Fixed split<small>learn 2012–2018, test 2019–2025</small>','① Sabit bölme<small>2012–2018\'den öğren, 2019–2025\'te test et</small>'],
+vs2:['② Expanding window<small>test each year 2015–2025, learn from all earlier years since 2012</small>','② İleriye genişleyen pencere<small>2015–2025\'in her yılını, 2012\'den o yıla kadarki yıllarla öğrenip test et</small>'],
+vs3:['③ Leave one year out<small>each year 2012–2025 is held out in turn</small>','③ Her yılı sırayla dışarıda bırak<small>2012–2025\'in her yılı sırayla test edilir</small>'],
+vt_f1:['Single factor<small>one ratio for all months</small>','Tek faktör<small>tüm aylar için tek oran</small>'],
+vt_f2:['Monthly factor<small>one ratio per calendar month — the method used in the calendar</small>','Aylık faktör<small>her takvim ayı için ayrı oran — takvimde kullanılan yöntem</small>'],
+vt_def:['<b>WAPE</b> = Σ|observed − predicted| ÷ Σ observed (lower is better). <b>Bias</b> = (Σ predicted − Σ observed) ÷ Σ observed; <b>positive means the predicted VIIRS is higher than the real VIIRS</b>. Both are computed on monthly totals of the whole region.','<b>WAPE</b> = Σ|gözlenen − tahmin| ÷ Σ gözlenen (düşük = iyi). <b>Bias</b> = (Σ tahmin − Σ gözlenen) ÷ Σ gözlenen; <b>pozitif, tahmin edilen VIIRS\'in gerçek VIIRS\'ten yüksek olduğu anlamına gelir</b>. İkisi de tüm bölgenin aylık toplamları üzerinden hesaplanır.'],
+vt_foot:['The "~{n}%" shown when you hover over MODIS-scaled years in the calendar is the fixed-split monthly-factor WAPE (①).','Takvimde MODIS\'ten ölçeklenmiş yılların üzerine gelince görünen "~%{n}", sabit bölmedeki (①) aylık faktör WAPE\'sidir.'],
+vt_foot2:[' It is the largest of the three monthly-factor results, i.e. the most cautious one.',' Üç aylık faktör sonucunun en büyüğüdür, yani en temkinli olanıdır.'],
+vt_n1:['<b>Learned vs. used factors:</b> in the fixed split (①) the factors were learned from 2012–2018 only. The final series — the calendar — uses factors learned from the whole 2012–2025 overlap.','<b>Öğrenilen ve kullanılan faktörler:</b> sabit bölmede (①) faktörler yalnızca 2012–2018\'den öğrenildi. Nihai seri — yani takvim — 2012–2025 örtüşmesinin tamamından öğrenilen faktörleri kullanır.'],
+vt_n2:['<b>The test only looks forward:</b> ① and ② learn from earlier years and predict later ones; ③ also learns from later years, so it is the most optimistic. Applying the factors <i>backward</i> to 2000–2011 cannot be tested, because there is no VIIRS record for those years.','<b>Test yalnızca ileriye doğrudur:</b> ① ve ② önceki yıllardan öğrenip sonraki yılları tahmin eder; ③ sonraki yılları da öğrenmeye kattığı için en iyimser olandır. Faktörleri <i>geriye</i>, 2000–2011\'e uygulamak test edilemez; çünkü bu yıllar için VIIRS kaydı yoktur.'],
+vt_n3:['<b>Bias is positive</b> in the fixed split (①): the predicted VIIRS is higher than the real VIIRS. It is smaller in ② and ③ because their training years also include recent years. The chart below shows why it appears in the first place.','<b>Bias pozitiftir</b> (sabit bölme ①): tahmin edilen VIIRS gerçek VIIRS\'ten yüksektir. ② ve ③\'te eğitim yılları yakın yılları da içerdiği için daha küçüktür. Neden ortaya çıktığını aşağıdaki grafik gösterir.'],
+vt_n3b:['<b>Bias is positive</b> in the fixed split (①): the predicted VIIRS is higher than the real VIIRS. The chart below shows why.','<b>Bias pozitiftir</b> (sabit bölme ①): tahmin edilen VIIRS gerçek VIIRS\'ten yüksektir. Nedenini aşağıdaki grafik gösterir.'],
+vt_err:['Could not load <code>data/validation_summary_v2.csv</code> or <code>data/yearly_ratio_v2.csv</code>. Open the folder through a web server (e.g. "python -m http.server").','<code>data/validation_summary_v2.csv</code> veya <code>data/yearly_ratio_v2.csv</code> yüklenemedi. Klasörü bir web sunucusuyla açın (ör. "python -m http.server").'],
+rc_h:['Why is the bias positive? Yearly VIIRS / MODIS ratio, 2012–2025','Bias neden pozitif? Yıllık VIIRS / MODIS oranı, 2012–2025'],
+rc_la:['2012–2018 (training years in ①)','2012–2018 (① eğitim yılları)'],
+rc_lb:['2019–2025 (test years in ①)','2019–2025 (① test yılları)'],
+rc_y:['VIIRS detections per MODIS detection','MODIS tespiti başına VIIRS tespiti'],
+rc_mean:['mean','ortalama'],rc_yr:['Year','Yıl'],
+rc_c1:['Average yearly ratio: <b>{a}</b> in 2012–2018 vs. <b>{b}</b> in 2019–2025 ({d}). Single years vary a lot (2012–2018: {ar}; 2019–2025: {br}).','Yıllık oranın ortalaması: 2012–2018\'de <b>{a}</b>, 2019–2025\'te <b>{b}</b> ({d}). Tek tek yıllar arasında fark büyüktür (2012–2018: {ar}; 2019–2025: {br}).'],
+rc_c2:[' <b>Why the bias is positive:</b> factors learned from 2012–2018 assume the higher ratio. In 2019–2025 one MODIS detection comes with fewer VIIRS detections than before, so the prediction made from MODIS ends up higher than the real VIIRS (bias {bt} with a single factor, {bm} with monthly factors, in ①). <i>Why the ratio changed was not investigated here.</i>',' <b>Bias neden pozitif:</b> 2012–2018\'den öğrenilen faktörler daha yüksek oranı varsayar. 2019–2025\'te bir MODIS tespitine düşen VIIRS tespiti öncekinden azdır; bu yüzden MODIS\'ten yapılan tahmin gerçek VIIRS\'ten yüksek çıkar (①\'de tek faktörle {bt}, aylık faktörle {bm}). <i>Oranın neden değiştiği burada araştırılmadı.</i>'],
+rc_tab:['Show the yearly values as a table','Yıllık değerleri tablo olarak göster'],
+sc1:['Value scaled from MODIS. Typical validation error for the region\'s monthly total: ~{n}%','MODIS\'ten ölçeklenmiş değer. Bölgenin aylık toplamı için doğrulamada tipik hata ~%{n}'],
+sc2:['For a small area the error is higher (in our test on 1° squares it was more than twice as large; see README, Known limitations). A single week or day was not measured.','Küçük bir alanda hata daha yüksektir (1° karelerde yaptığımız testte iki kattan fazlaydı; bkz. README, Known limitations). Tek bir hafta veya gün ölçülmedi.'],
+sc2a:['That error was measured for the whole region (Türkiye and surroundings), not for your selected area, where it may be higher.','Bu hata seçtiğiniz alan için değil, tüm bölge (Türkiye ve çevresi) için ölçüldü; seçtiğiniz alanda daha yüksek olabilir.'],
+sc0:['2000–02: Terra only until 3 July 2002, so these values use their own Terra-only factors (held-out error about 25%, tested on 2019–2025). The real error for these years could not be measured.','2000–02: 3 Temmuz 2002\'ye kadar yalnızca Terra; bu değerlerde yalnız-Terra faktörleri kullanıldı (2019–2025 testinde hata yaklaşık %25). Bu yıllar için gerçek hata ölçülemedi.'],
+sc1b:['Value scaled from MODIS.','MODIS\'ten ölçeklenmiş değer.'],
+f1:['Harmonization: Before vs. After (2000–2025)','Uyumlaştırma: Öncesi ve Sonrası (2000–2025)'],
+f2:['Calendar-Month Scaling Factors (VIIRS / MODIS)','Aylık Ölçekleme Çarpanları (VIIRS / MODIS)'],
+f3:['Case Study: July–August 2021 Manavgat Megafire','Vaka Analizi: Temmuz–Ağustos 2021 Manavgat Yangını'],
+f4:['Fixed-split test, scheme ① (learn 2012–2018, test 2019–2025): actual VIIRS vs. MODIS prediction','Sabit bölme testi, şema ① (2012–2018\'den öğren, 2019–2025\'te test et): gerçek VIIRS ve MODIS tahmini'],
+mt:['<p><b>Harmonization:</b> MODIS (2000–2011) hotspot counts are scaled to VIIRS-equivalent counts with calendar-month factors (<code>monthly_factors_v2.json</code>) derived from the 2012–2025 overlap; from 2012 VIIRS is used as is. Grid: 0.25°, daily. Data: NASA FIRMS Area API, bounding box 25.5–44.9°E, 35.7–42.2°N (<b>Türkiye &amp; surroundings</b>).</p><p><b>Anomalies:</b> per calendar week over the selected years from 2003 (log counts). Team reference = mean/SD z-score (matches the Colab/JS validation); Robust = median/MAD. Results are candidates for review. Weeks are shown 1–52 (JS 0-based index = week − 1); week 52 covers the last 8–9 days of the year.</p><ul><li><b>Colab ↔ JS Validation:</b> The app reproduces the Python/Colab reference outputs with 0.0 difference: critical weeks <code>25–27, 32–42</code> (JS 0-based: <code>24–26, 31–41</code>), core weeks <code>34–40</code> (JS 0-based: <code>33–39</code>), <code>10</code> anomalies.</li><li><b>2000–02 Single-Satellite Era (⚠):</b> Only Terra MODIS was active until 3 July 2002 (when Aqua joined, doubling daily overpasses). The values before that date use their own Terra-only monthly factors (<code>monthly_factors_terra_v2.json</code>).</li><li><b>Recurrent Cells &amp; FIRMS Type Check:</b> Toggling "Exclude recurrent-hotspot cells" filters out persistent cells active ≥150 days in ≥12 of 14 years (493 cells), isolating repeated agricultural stubble burning and static industrial sources.</li><li><b>2009 &amp; Spring 2012 Independent Verification:</b> Raw Terra and Aqua records independently confirm the 2009 activity jump across both day and night overpasses (99.5% <code>type=0</code> vegetation fire). Spring 2012 is also elevated in both MODIS and VIIRS with normal inter-sensor ratios.</li></ul>','<p><b>Uyumlaştırma:</b> MODIS (2000–2011) sayıları, 2012–2025 örtüşmesinden türetilen aylık çarpanlarla (<code>monthly_factors_v2.json</code>) VIIRS eşdeğerine ölçeklenir; 2012\'den itibaren VIIRS olduğu gibi kullanılır. Izgara: 0,25°, günlük. Veri: NASA FIRMS Area API, dikdörtgen kutu 25,5–44,9°D, 35,7–42,2°K (<b>Türkiye ve çevresi</b>).</p><p><b>Anomali:</b> seçili yıllarda (2003 ve sonrası) her takvim haftası için log sayım üzerinden hesaplanır. Ekip referansı = ortalama/SS z-skoru (Colab/JS doğrulamasıyla birebir aynı); Dayanıklı = medyan/MAD. Sonuçlar inceleme adaylarıdır. Haftalar 1–52 gösterilir (JS 0-tabanlı indeksi = hafta − 1); 52. hafta yılın son 8–9 gününü kapsar.</p><ul><li><b>Colab ↔ JS Doğrulaması:</b> Uygulama, Python/Colab referans sonuçlarıyla %100 örtüşmektedir: kritik haftalar <code>25–27, 32–42</code> (JS 0-tabanlı: <code>24–26, 31–41</code>), çekirdek haftalar <code>34–40</code> (JS 0-tabanlı: <code>33–39</code>), <code>10</code> anomali.</li><li><b>2000–02 Tek Uydu Dönemi (⚠):</b> 3 Temmuz 2002\'ye kadar yalnızca Terra MODIS aktifti (Aqua uydusu katılarak günlük geçiş sayısını ikiye katladı). Bu tarihten önceki değerler kendi yalnız-Terra aylık faktörlerini kullanır (<code>monthly_factors_terra_v2.json</code>).</li><li><b>Tekrarlayan Hücreler ve FIRMS Tür Kontrolü:</b> "Tekrarlayan hücreleri hariç tut" seçeneği 14 yılın ≥12\'sinde ≥150 gün aktif olan hücreleri (493 hücre) filtreleyerek sabit sanayi kaynaklarını ve tekrarlı anız yakmalarını ayırır.</li><li><b>2009 ve 2012 İlkbaharı Bağımsız Doğrulaması:</b> Ham Terra ve Aqua kayıtları, 2009 yılındaki sıçramayı gündüz ve gece geçişlerinde bağımsız olarak doğrulamaktadır (%99,5\'i <code>type=0</code> bitki örtüsü yangını). 2012 ilkbaharı da hem MODIS hem VIIRS\'te normal sensör oranlarıyla yüksektir.</li></ul>']};
+let LANG='en',METH='c',REF=null,AOI=null,AOIL='',SHAPE=null,SENS='intensity',VIEW='w',FOCUS=null,N=0,F={},CUR=null,SEL,GRAT=null,DB=[25.5,35.5,45.0,42.25];
+const l=(a,b)=>LANG=='tr'?b:a,t=k=>T[k][LANG=='tr'?1:0],SK=['intensity','raw_modis','raw_viirs'];
+let D,K,Y,W,M,LA,LO,ST,NST=0,V={};
+let VAL=null,YR=null,VERR=0,VSIG='';
+const RP=[[66,10,104],[147,38,103],[221,81,58],[252,165,10],[252,255,164]];
+// Colour scale (calendar and map): log1p between the 5th and the 98th percentile of the non-zero values in view
+// (<30 non-zero values: 0 .. maximum). Values below/above the ends take the end colours, so one extreme week/cell cannot flatten the rest.
+const labv=v=>v>=1e4?Math.round(v/1e3)+'k':v>=1e3?(v/1e3).toFixed(1).replace(/\.0$/,'')+'k':v>=10?String(Math.round(v)):String(+v.toFixed(1));
+function mkScale(vals){const p=vals.filter(x=>x>0).sort((x,y)=>x-y),n=p.length;if(!n)return{lo:0,hi:0,max:0};
+ const q=f=>{const i=(n-1)*f,j=Math.floor(i);return p[j]+(p[Math.min(j+1,n-1)]-p[j])*(i-j)};
+ let lo=0,hi=p[n-1];if(n>=30){lo=q(.05);hi=q(.98)}if(!(hi>lo)){lo=0;hi=p[n-1]}return{lo,hi,max:p[n-1]}}
+const rr=(v,S)=>Math.min(Math.max((Math.log1p(v)-Math.log1p(S.lo))/(Math.log1p(S.hi)-Math.log1p(S.lo)),0),1);
+function ticks(S){if(!(S.hi>0))return'';const sp=(v,c)=>`<span class="${c}" style="left:${(100*rr(v,S)).toFixed(1)}%">${c=='e0'?'≤':c=='e1'?'≥':''}${labv(v)}</span>`;
+ let o=S.lo>0?sp(S.lo,'e0'):'';for(let v=1;v<S.hi;v*=10){const q=100*rr(v,S);if(q>24&&q<70)o+=sp(v,'')}return o+sp(S.hi,'e1')}
+const lgTip=S=>l(`Colour = hotspots per cell on a log scale, from the 5th percentile (≤${labv(S.lo)}) to the 98th percentile (≥${labv(S.hi)}) of the non-zero values in view; the highest value is ${labv(S.max)}. Relative to the current selection, so not comparable between views.`,`Renk = hücre başına sıcak nokta sayısı (log ölçek); görünümdeki sıfırdan farklı değerlerin %5'inden (≤${labv(S.lo)}) %98'ine (≥${labv(S.hi)}) kadar. En yüksek değer ${labv(S.max)}. Seçime göre göreli olduğundan görünümler arasında karşılaştırılamaz.`);
+function updLegend(S){const e=document.getElementById('lt'),g=document.getElementById('lgd');if(e)e.innerHTML=ticks(S);if(g)g.title=S.hi>0?lgTip(S):''}
+const MLG=L.control({position:'bottomleft'});
+MLG.onAdd=()=>{const d=L.DomUtil.create('div','mlg');d.hidden=true;L.DomEvent.disableClickPropagation(d);return d};
+function updMapLegend(S,cap){const d=MLG.getContainer();if(!d)return;if(!(S.hi>0)){d.hidden=true;return}d.hidden=false;
+ d.innerHTML=`<small>${cap}</small><div class="lgw"><div class="lg"></div><div class="lt">${ticks(S)}</div></div>`;d.title=lgTip(S)}
+function cc(v,S){if(!(v>0)||!(S.hi>0))return['#211c19','#6f665e'];const r=rr(v,S)*4,i=Math.min(Math.floor(r),3),f=r-i,c=RP[i].map((x,j)=>Math.round(x+(RP[i+1][j]-x)*f));return[`rgb(${c})`,r>2.5?'#111':'#fff']}
+const med=a=>{const s=[...a].sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):0};
+const q=(a,p)=>{const s=[...a].sort((x,y)=>x-y);return s.length?s[Math.min(s.length-1,Math.floor(p*s.length))]:0};
+const dt=(y,w,e)=>new Date(Date.UTC(y,0,1+7*w+(e?(w==51?Math.round((Date.UTC(y,11,31)-Date.UTC(y,0,1+7*w))/864e5):6):0))),fd=d=>d.getUTCDate()+' '+MN[LANG][d.getUTCMonth()];
+const wr=(y,w)=>{const a=dt(y,w),b=dt(y,w,1);return a.getUTCMonth()==b.getUTCMonth()?`${a.getUTCDate()}–${fd(b)}`:`${fd(a)} – ${fd(b)}`};
+const mean=a=>a.reduce((p,c)=>p+c,0)/(a.length||1),sd=(a,m)=>Math.sqrt(a.reduce((p,c)=>p+(c-m)**2,0)/Math.max(a.length-1,1));
+const rng=a=>{const o=[];for(let i=0;i<a.length;){let j=i;while(a[j+1]==a[j]+1)j++;o.push(j>i?`${a[i]+1}–${a[j]+1}`:`${a[i]+1}`);i=j+1}return o.join(', ')||'–'};
+const rng0=a=>{const o=[];for(let i=0;i<a.length;){let j=i;while(a[j+1]==a[j]+1)j++;o.push(j>i?`${a[i]}–${a[j]}`:`${a[i]}`);i=j+1}return o.join(', ')||'–'};
+const fmt=x=>Math.round(x).toLocaleString(LANG=='tr'?'tr-TR':'en-US');
+const PR=[
+  ['Preset area…','Hazır bölge…',null],
+  ['Mediterranean coast','Akdeniz kıyısı',[36,37.5,28,36.5]],
+  ['Aegean','Ege',[36.5,40,26,29.5]],
+  ['Southeast Anatolia','Güneydoğu Anadolu',[36.5,38.5,37,44.5]],
+  ['Black Sea','Karadeniz',[40,42,27,41]],
+  ['Central Anatolia','İç Anadolu',[37.5,40,31,36]],
+  ['Marmara & Thrace','Marmara ve Trakya',[39.5,42,26,30.5]],
+  ['🔥 Case Study: 2021 Med. Megafires (Manavgat–Muğla)','🔥 Vaka Analizi: 2021 Akdeniz Yangınları (Manavgat–Muğla)',[36.5,37.4,27.5,32.2],2021]
+];
+try{const sv=JSON.parse(localStorage.getItem('firms_saved_aoi')||'[]');sv.forEach(x=>PR.push(['⭐ '+x.n,'⭐ '+x.n,x.b]))}catch(e){}
+const map=L.map('map',{preferCanvas:true,maxZoom:18,minZoom:3,zoomSnap:.5,wheelPxPerZoomLevel:90}).setView([39,35],5),LG=L.layerGroup().addTo(map);
+L.control.scale({metric:true,imperial:true,position:'bottomleft'}).addTo(map);
+map.createPane('base').style.zIndex=150;
+fetch('libs/world.geojson').then(r=>r.json()).then(g=>L.geoJSON(g,{pane:'base',style:{color:'#6b6057',weight:1,fillColor:'#1f1a17',fillOpacity:1},interactive:false}).addTo(map));
+map.on('mousemove',e=>{const la=e.latlng.lat,lo=e.latlng.lng;$('crd').textContent=`Lat: ${Math.abs(la).toFixed(3)}°${la>=0?'N':'S'}, Lon: ${Math.abs(lo).toFixed(3)}°${lo>=0?'E':'W'}`});
+function toggleGrat(){
+ if(GRAT){map.removeLayer(GRAT);GRAT=null;return}
+ GRAT=L.layerGroup();
+ for(let la=34;la<=44;la+=2)L.polyline([[la,24],[la,46]],{color:'rgba(255,255,255,.5)',weight:1,dashArray:'3,4',interactive:false}).addTo(GRAT);
+ for(let lo=24;lo<=46;lo+=2)L.polyline([[34,lo],[44,lo]],{color:'rgba(255,255,255,.5)',weight:1,dashArray:'3,4',interactive:false}).addTo(GRAT);
+ GRAT.addTo(map)}
+function calcAreaKm2(a){
+ const R=6371.0088,rad=Math.PI/180;
+ if(!a){
+  let s=0;const seen=new Set();
+  for(let i=0;i<N;i++)if(!seen.has(K[i])){seen.add(K[i]);const la=LA[i];s+=R*R*Math.abs(Math.sin((la+.125)*rad)-Math.sin((la-.125)*rad))*(.25*rad)}
+  return s||783562}
+ if(a.t=='r')return R*R*Math.abs(Math.sin(a.n*rad)-Math.sin(a.s*rad))*Math.abs(a.e-a.w)*rad;
+ if(a.t=='c')return Math.PI*(a.r/1000)**2;
+ if(a.t=='p'&&a.p.length>=3){
+  let s=0;for(let i=0,j=a.p.length-1;i<a.p.length;j=i++){const[la1,lo1]=a.p[j],[la2,lo2]=a.p[i];s+=(lo2-lo1)*rad*(2+Math.sin(la1*rad)+Math.sin(la2*rad))}
+  return Math.abs(s)*R*R/2}
+ return 0}
+function aoiBounds(a){
+ if(!a)return DB;
+ if(a.t=='r')return[a.w,a.s,a.e,a.n];
+ if(a.t=='c'){const dLat=(a.r/1000)/111.32,dLon=dLat/Math.cos(a.c.lat*Math.PI/180);return[a.c.lng-dLon,a.c.lat-dLat,a.c.lng+dLon,a.c.lat+dLat]}
+ const lats=a.p.map(p=>p[0]),lons=a.p.map(p=>p[1]);return[Math.min(...lons),Math.min(...lats),Math.max(...lons),Math.max(...lats)]}
+map.pm.addControls({position:'topleft',drawMarker:false,drawPolyline:false,drawCircleMarker:false,drawText:false,editMode:false,dragMode:false,cutPolygon:false,removalMode:false,rotateMode:false});
+map.on('pm:create',e=>{clr();SHAPE=e.layer;const y=e.layer;let a,b;
+ if(e.shape=='Circle'){a={t:'c',c:y.getLatLng(),r:y.getRadius()};b=`r=${Math.round(a.r/1000)} km @ ${a.c.lat.toFixed(2)}°N, ${a.c.lng.toFixed(2)}°E`}
+ else if(e.shape=='Rectangle'){const g=y.getBounds();a={t:'r',s:g.getSouth(),n:g.getNorth(),w:g.getWest(),e:g.getEast()};b=`${a.s.toFixed(2)}–${a.n.toFixed(2)}°N, ${a.w.toFixed(2)}–${a.e.toFixed(2)}°E`}
+ else{a={t:'p',p:y.getLatLngs()[0].map(p=>[p.lat,p.lng])};b=l('Polygon','Çokgen')+` (${a.p.length})`}
+ setArea(a,b)});
+function inArea(i){const a=AOI;if(!a)return true;const la=LA[i],lo=LO[i];
+ if(a.t=='r')return la>=a.s&&la<=a.n&&lo>=a.w&&lo<=a.e;
+ if(a.t=='c')return L.latLng(la,lo).distanceTo(a.c)<=a.r;
+ let s=false;for(let p=0,k=a.p.length-1;p<a.p.length;k=p++){const[x1,y1]=a.p[p],[x2,y2]=a.p[k];if((y1>lo)!=(y2>lo)&&la<(x2-x1)*(lo-y1)/(y2-y1)+x1)s=!s}return s}
+function setArea(a,lab){
+ AOI=a;AOIL=lab;FOCUS=null;
+ const[w,s,e,n]=aoiBounds(a);
+ if(a){$('a0').value=s.toFixed(2);$('a1').value=n.toFixed(2);$('a2').value=w.toFixed(2);$('a3').value=e.toFixed(2)}
+ else{$('a0').value='';$('a1').value='';$('a2').value='';$('a3').value=''}
+ if(!N)return;SEL=new Uint8Array(N);for(let i=0;i<N;i++)SEL[i]=inArea(i)?1:0;refresh()}
+function clr(){if(SHAPE){map.removeLayer(SHAPE);SHAPE=null}}
+function rect(s,n,w,e){clr();SHAPE=L.rectangle([[s,w],[n,e]],{color:'#93c5fd',weight:2,fillOpacity:.08}).addTo(map);map.fitBounds(SHAPE.getBounds(),PAD());setArea({t:'r',s,n,w,e},`${s}–${n}°N, ${w}–${e}°E`)}
+function preset(){const idx=+$('pre').value,item=PR[idx];if(!item||!item[2])return;rect(...item[2]);if(item[3]){$('cy').value=item[3];$('cm').value=8;refresh()}}
+function coords(){const v=[0,1,2,3].map(i=>parseFloat($('a'+i).value));if(v.some(isNaN)||v[0]>=v[1]||v[2]>=v[3])return alert(l('Enter lat min < lat max and lon min < lon max','Enlem min < max ve boylam min < max olmalı'));rect(...v)}
+function fitDataBounds(){map.fitBounds([[DB[1],DB[0]],[DB[3],DB[2]]],PAD())}
+function resetArea(){clr();$('pre').value=0;fitDataBounds();setArea(null,'')}
+function locateMe(){
+ if(!navigator.geolocation)return alert(l('Geolocation is not supported by this browser.','Tarayıcınız konum özelliğini desteklemiyor.'));
+ navigator.geolocation.getCurrentPosition(pos=>{
+  const c=L.latLng(pos.coords.latitude,pos.coords.longitude),r=100000;
+  clr();SHAPE=L.circle(c,{radius:r,color:'#93c5fd',weight:2,fillOpacity:.08}).addTo(map);map.fitBounds(SHAPE.getBounds(),PAD());
+  setArea({t:'c',c,r},`r=100 km @ ${c.lat.toFixed(2)}°N, ${c.lng.toFixed(2)}°E`)
+ },()=>alert(l('Could not access your location.','Konumunuza erişilemedi.')))}
+function saveAOI(){
+ if(!AOI)return alert(l('Select or draw an area on the map first.','Önce haritada bir alan seçin veya çizin.'));
+ const nm=prompt(l('Name for this saved area:','Kaydedilecek alan için bir ad girin:'),AOIL||'Custom AOI');
+ if(!nm)return;const[w,s,e,n]=aoiBounds(AOI),b=[+s.toFixed(2),+n.toFixed(2),+w.toFixed(2),+e.toFixed(2)];
+ PR.push(['⭐ '+nm,'⭐ '+nm,b]);
+ try{const sv=JSON.parse(localStorage.getItem('firms_saved_aoi')||'[]');sv.push({n:nm,b});localStorage.setItem('firms_saved_aoi',JSON.stringify(sv))}catch(err){}
+ fillSel();$('pre').value=PR.length-1}
+function openFIRMS(){
+ const[w,s,e,n]=aoiBounds(AOI),lat=((s+n)/2).toFixed(2),lon=((w+e)/2).toFixed(2),zm=AOI?7:5;
+ window.open(`https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@${lon},${lat},${zm}.0z`,'_blank','noopener')}
+function shareView(){
+ const p=new URLSearchParams();
+ p.set('y0',$('y0').value);p.set('y1',$('y1').value);p.set('s',SENS);p.set('v',VIEW);p.set('m',METH);p.set('z',$('z').value);p.set('mi',$('mi2').value);
+ if($('ns').checked)p.set('ns','1');
+ if(AOI){const[w,s,e,n]=aoiBounds(AOI);p.set('bbox',[s.toFixed(2),n.toFixed(2),w.toFixed(2),e.toFixed(2)].join(','))}
+ const url=location.origin+location.pathname+'#'+p.toString();
+ history.replaceState(null,'','#'+p.toString());
+ if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
+ toast(t('t_link'))}
+function copyApi(){
+ if(navigator.clipboard)navigator.clipboard.writeText($('apiUrl').textContent);
+ $('apiC').textContent=l('✓ Copied!','✓ Kopyalandı!');setTimeout(()=>$('apiC').textContent=t('apiC'),1600)}
+function fillSel(){const c=$('pre').value||0;$('pre').innerHTML=PR.map((p,i)=>`<option value="${i}">${l(p[0],p[1])}</option>`).join('');$('pre').value=c;
+ const m=$('cm').value||12;$('cm').innerHTML=MN[LANG].map((x,i)=>`<option value="${i+1}">${x}</option>`).join('');$('cm').value=m}
+function applyLang(){document.documentElement.lang=LANG;document.querySelectorAll('[data-i]').forEach(e=>e.innerHTML=t(e.dataset.i));$('lang').textContent=LANG=='en'?'TR':'EN';fillSel();refresh()}
+function setMeth(m){METH=m;$('z').value=m=='c'?2:3;refresh()}
+function toggleLang(){LANG=LANG=='en'?'tr':'en';applyLang()}
+function parseGridCSV(txt){
+ const ln=txt.trim().split(/\r?\n/),hdr=ln[0].toLowerCase().split(',');
+ if(hdr.includes('acq_date')&&hdr.includes('latitude')){
+  const iD=hdr.indexOf('acq_date'),iLa=hdr.indexOf('latitude'),iLo=hdr.indexOf('longitude'),iS=hdr.indexOf('instrument'),iT=hdr.indexOf('type');
+  const agg=new Map();
+  for(let i=1;i<ln.length;i++){
+   const c=ln[i].split(',');if(c.length<=Math.max(iD,iLa,iLo))continue;
+   if(iT>-1&&c[iT]!=='0'&&c[iT]!=='')continue;
+   const d=c[iD].trim(),la=Math.floor((+c[iLa])/.25)*.25+.125,lo=Math.floor((+c[iLo])/.25)*.25+.125;
+   if(isNaN(la)||isNaN(lo)||d.length<10)continue;
+   const cid=`${la.toFixed(3)}_${lo.toFixed(3)}`,key=`${d}|${cid}`,inst=(iS>-1?c[iS]:'').toUpperCase();
+   let o=agg.get(key);if(!o)agg.set(key,o={d,cid,la,lo,m:0,v:0});
+   if(inst.includes('MODIS'))o.m++;else o.v++}
+  const out=['date,cell_id,lat,lon,intensity,raw_modis,raw_viirs'];
+  agg.forEach(o=>{const y=+o.d.slice(0,4),mo=+o.d.slice(5,7),fac=F[mo]||3.5,int=y<2012?(o.m>0?o.m*fac:o.v):(o.v>0?o.v:o.m*fac);out.push(`${o.d},${o.cid},${o.la},${o.lo},${int.toFixed(2)},${o.m},${o.v}`)});
+  return parseGridCSV(out.join('\n'))}
+ N=ln.length-1;D=new Array(N);K=new Array(N);Y=new Uint16Array(N);W=new Uint8Array(N);M=new Uint8Array(N);LA=new Float32Array(N);LO=new Float32Array(N);ST=new Uint8Array(N);
+ SK.forEach(k=>V[k]=new Float32Array(N));const cs=new Map();
+ let sLa=90,nLa=-90,wLo=180,eLo=-180;
+ for(let i=0;i<N;i++){const c=ln[i+1].split(','),s=c[0],y=+s.slice(0,4),mo=+s.slice(5,7),d=+s.slice(8,10),la=+c[2],lo=+c[3];D[i]=s;K[i]=c[1];Y[i]=y;M[i]=mo;
+  if(la<sLa)sLa=la;if(la>nLa)nLa=la;if(lo<wLo)wLo=lo;if(lo>eLo)eLo=lo;
+  W[i]=Math.min(Math.floor(Math.round((Date.UTC(y,mo-1,d)-Date.UTC(y,0,1))/864e5)/7),51);LA[i]=la;LO[i]=lo;V.intensity[i]=+c[4];V.raw_modis[i]=+c[5];V.raw_viirs[i]=+c[6];
+  if(y>=2012){let o=cs.get(c[1]);if(!o)cs.set(c[1],o={d:0,y:0});o.d++;o.y|=1<<(y-2012)}}
+ DB=[wLo-.125,sLa-.125,eLo+.125,nLa+.125];
+ const st=new Set();cs.forEach((o,k)=>{let n=0,b=o.y;while(b){n+=b&1;b>>=1}if(n>=12&&o.d>=150)st.add(k)});NST=st.size;for(let i=0;i<N;i++)ST[i]=st.has(K[i])?1:0;
+ if(!$('y0').innerHTML){
+  const ys=[...Array(26)].map((_,i)=>`<option>${2000+i}</option>`).join('');$('y0').innerHTML=ys;$('y1').innerHTML=ys;$('cy').innerHTML=ys;
+  $('y0').value=2000;$('y1').value=2025;$('cy').value=+D[N-1].slice(0,4);$('cm').value=+D[N-1].slice(5,7)}
+ SEL=new Uint8Array(N).fill(1);
+ const rw=[...Array(26)].map(()=>new Float64Array(52));for(let i=0;i<N;i++)if(Y[i]>=2000&&Y[i]<=2025)rw[Y[i]-2000][W[i]]+=V.intensity[i];
+ REF=stats(rw,[...Array(23)].map((_,i)=>2003+i),false,2,20);
+ if(!AOI)fitDataBounds();
+ setArea(AOI,AOIL)}
+// the bundled dataset: NASA FIRMS Area API extract, gridded by the team's pipeline
+function loadData(cb){
+ showLoad();
+ const csvFile='daily_grid_v2.csv',facFile='monthly_factors_v2.json';
+ Promise.all([fetch(csvFile).then(r=>{if(!r.ok)throw new Error(csvFile);return r.text()}),fetch(facFile).then(r=>r.json())]).then(([txt,f])=>{
+  F=f;parseGridCSV(txt);if(cb)cb()
+ }).catch(e=>{console.warn(e);
+  $('load').classList.add('done');$('err').style.display='block';$('err').textContent=l('Could not load the data files. Open this folder through a web server (e.g. "python -m http.server") or host it on GitHub Pages.','Veri dosyaları yüklenemedi. Klasörü bir web sunucusuyla açın (ör. "python -m http.server") veya GitHub Pages\'te yayınlayın.')})}
+// ===== v6 interface: full-screen map, satellite layers, icon dock, side panel, calendar drawer =====
+const FONT="Barlow,'Segoe UI',Inter,system-ui,sans-serif",PTK={area:'area',data:'p_data',ins:'p_ins',an:'an',meth:'meth',dl:'dl',help:'p_help'};
+let PANEL=null,CALS='closed',OPAC=.75,BASE='dark',LBLON=true,GIBSON=true,HIZ=false,READY=false,GIBS=null,GKEY='',tOK=0,tERR=0;
+const MOB=()=>innerWidth<=760,MAXED=()=>document.body.classList.contains('maxed');
+function toast(m){const e=$('toast');e.textContent=m;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2800)}
+// CSS variables tell the dock, drawer and Leaflet controls how much room the open panels take
+function setVars(){
+ const r=document.documentElement.style,mob=MOB(),mx=MAXED();
+ const side=PANEL&&!mob&&!mx?Math.min(PANEL=='meth'?780:420,innerWidth-24)+12:0;
+ let h=0;if(CALS!='closed'&&!mx)h=CALS=='full'?innerHeight-(mob?132:96):Math.round(mob?Math.min(Math.max(innerHeight*.36,210),330):Math.min(Math.max(innerHeight*.38,250),350));
+ $('cald').style.height=h+'px';r.setProperty('--side',side+'px');r.setProperty('--calh',(h?h+(mob?8:12):0)+'px')}
+function PAD(){const cs=getComputedStyle(document.documentElement),sd=parseInt(cs.getPropertyValue('--side'))||0,ch=parseInt(cs.getPropertyValue('--calh'))||0;
+ return{paddingTopLeft:[MOB()?16:60,MOB()?64:88],paddingBottomRight:[sd+(MOB()?16:28),ch+(MOB()?70:86)]}}
+function openPanel(id){
+ if(id&&PANEL==id)id=null;PANEL=id;const s=$('side');if(id&&!$('hint').hidden)hideHint();
+ document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id=='p-'+id));
+ s.classList.toggle('open',!!id);s.classList.toggle('wide',id=='meth');
+ document.querySelectorAll('#dock [data-p]').forEach(b=>b.classList.toggle('on',b.dataset.p==id));
+ $('vmenu').classList.remove('on');
+ if(id){$('pt').innerHTML=t(PTK[id]);s.querySelector('.pb').scrollTop=0}
+ setVars();
+ if(id)[80,560].forEach(ms=>setTimeout(()=>s.querySelectorAll('.pane.on .js-plotly-plot').forEach(g=>{try{Plotly.Plots.resize(g)}catch(e){}}),ms))}
+function setCal(s){CALS=s;$('cald').classList.toggle('open',s!='closed');$('cald').classList.toggle('full',s=='full');$('dcal').classList.toggle('on',s!='closed');setVars()}
+function viewMode(m){
+ if(m=='fs'){const d=document;if(d.fullscreenElement)d.exitFullscreen();else if(d.documentElement.requestFullscreen)d.documentElement.requestFullscreen().catch(()=>{})}
+ else{document.body.classList.toggle('maxed',m=='max');$('v_def').classList.toggle('on',m!='max');$('v_max').classList.toggle('on',m=='max')}
+ $('vmenu').classList.remove('on');setVars()}
+function hideHint(){$('hint').hidden=true;try{localStorage.setItem('bac_hint','1')}catch(e){}}
+function draw(shape){map.pm.enableDraw(shape);toast(t('t_draw'));if(MOB())openPanel(null)}
+
+// --- map layers: satellite imagery + place names on top, NASA true-colour image for the selected week ---
+map.options.maxZoom=18;map.options.minZoom=3;
+map.createPane('gibs').style.zIndex=210;map.getPane('gibs').style.pointerEvents='none';
+map.createPane('lbl').style.zIndex=450;map.getPane('lbl').style.pointerEvents='none';
+map.attributionControl.setPrefix(false).addAttribution('Hotspots: <a href="https://earthdata.nasa.gov/firms" target="_blank" rel="noopener">NASA FIRMS</a> (MODIS, VIIRS S-NPP)');
+const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
+const SAT=L.tileLayer(ESRI+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'});
+const LBL=L.tileLayer(ESRI+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,pane:'lbl'});
+SAT.on('tileload',()=>{tOK++});
+SAT.on('tileerror',()=>{tERR++;if(!tOK&&tERR==6&&BASE=='sat'){setBase('dark');toast(t('t_off'))}});
+function setBase(b){
+ BASE=b;
+ if(b=='sat'){SAT.addTo(map);if(LBLON)LBL.addTo(map)}else{map.removeLayer(SAT);map.removeLayer(LBL)}
+ $('bsat').classList.toggle('on',b=='sat');$('bdark').classList.toggle('on',b=='dark');updImg()}
+function setLbl(on){LBLON=on;if(on&&BASE=='sat')LBL.addTo(map);else map.removeLayer(LBL)}
+function setOpac(v){OPAC=+v;$('opv').textContent=Math.round(OPAC*100)+'%';drawMap()}
+function updImg(){
+ let s='';
+ if(GIBSON&&BASE=='sat'&&FOCUS){const d=FOCUS.w!=null?new Date(dt(FOCUS.y,FOCUS.w).getTime()+3*864e5):new Date(Date.UTC(FOCUS.y,FOCUS.m-1,15));s=d.toISOString().slice(0,10);if(s<'2000-03-01')s=''}
+ if(s==GKEY)return;GKEY=s;
+ if(GIBS){map.removeLayer(GIBS);GIBS=null}
+ if(s)GIBS=L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/'+s+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',{pane:'gibs',maxNativeZoom:9,maxZoom:18,attribution:'NASA GIBS (MODIS Terra)'}).addTo(map);
+ $('gnote').textContent=s?`${t('g_on')} MODIS Terra, ${s}`:''}
+map.on('zoomend',()=>{if((map.getZoom()>=9)!=HIZ)drawMap()});
+
+// --- calendar selection: the note that used to be hover-only is written out, so it also works on touch ---
+function markSel(){
+ document.querySelectorAll('#cal td.sel').forEach(e=>e.classList.remove('sel'));let d=null;
+ if(FOCUS){const c=VIEW=='w'?FOCUS.w:(FOCUS.m!=null?FOCUS.m-1:null);if(c!=null)d=document.querySelector(`#cal td[data-y="${FOCUS.y}"][data-c="${c}"]`)}
+ const ci=$('cinfo');ci.textContent='';
+ if(d){d.classList.add('sel');const p=d.title.split('\n'),b=document.createElement('b'),sp=document.createElement('span');b.textContent=p[0];sp.textContent=p.length>1?' '+p.slice(1).join(' '):'';ci.append(b,sp)}
+ else{const sp=document.createElement('span');sp.textContent=FOCUS?'':t('click');ci.append(sp)}}
+function focusWeek(y,w){FOCUS={y,w};drawMap();markSel();if(MOB())openPanel(null)}
+function clearFocus(){FOCUS=null;drawMap();markSel()}
+$('cal').addEventListener('click',e=>{const d=e.target.closest('td[data-y]');if(!d)return;const y=+d.dataset.y,c=+d.dataset.c;FOCUS=VIEW=='w'?{y,w:c}:{y,m:c+1};drawMap();markSel();if(CALS=='full')setCal('open')});
+
+// runs at the end of every refresh()
+function post(){
+ if(!READY){READY=true;$('load').classList.add('done');const c=$('cal');c.classList.remove('ignite');void c.offsetWidth;c.classList.add('ignite');c.addEventListener('animationend',()=>c.classList.remove('ignite'),{once:true})}
+ $('cal').dataset.v=VIEW;
+ $('sum').textContent=`${$('k1').textContent} · ${$('k2').textContent} ${l('hotspot-days','sıcak nokta-günü')}`;
+ if(PANEL)$('pt').innerHTML=t(PTK[PANEL]);
+ document.title=t('tt')+' – MODIS + VIIRS';
+ document.querySelectorAll('#dock>button').forEach(b=>{const s=b.querySelector('span');if(s){b.title=s.textContent;b.setAttribute('aria-label',s.textContent)}});
+ markSel()}
+function showLoad(){READY=false;$('load').classList.remove('done')}
+
+addEventListener('resize',()=>{setVars()});
+addEventListener('keydown',e=>{if(e.key!='Escape')return;if($('vmenu').classList.contains('on'))$('vmenu').classList.remove('on');else if(PANEL)openPanel(null)});
+document.addEventListener('click',e=>{if(!e.target.closest('#dview')&&!e.target.closest('#vmenu'))$('vmenu').classList.remove('on')});
+try{if(!localStorage.getItem('bac_hint'))$('hint').hidden=false}catch(e){$('hint').hidden=false}
+setCal('open');
+setBase(navigator.onLine===false?'dark':'sat');
+
+loadData(()=>{
+ if(location.hash.length>1){
+  const p=new URLSearchParams(location.hash.slice(1));
+  if(p.get('y0'))$('y0').value=p.get('y0');if(p.get('y1'))$('y1').value=p.get('y1');
+  if(p.get('s')&&SK.includes(p.get('s')))SENS=p.get('s');
+  if(p.get('v'))VIEW=p.get('v');if(p.get('m'))METH=p.get('m');
+  if(p.get('z'))$('z').value=p.get('z');if(p.get('mi'))$('mi2').value=p.get('mi');
+  if(p.get('ns')=='1')$('ns').checked=true;
+  if(p.get('bbox')){const b=p.get('bbox').split(',').map(Number);if(b.length==4&&!b.some(isNaN))rect(b[0],b[1],b[2],b[3]);else refresh()}else refresh()}});
+function stats(wk,B,rb,zt,mi){
+ const z=[...Array(26)].map(()=>new Float64Array(52)),clim=new Float64Array(52);
+ for(let w=0;w<52;w++){const lg=B.map(y=>Math.log1p(wk[y-2000][w])),m=rb?med(lg):mean(lg);let s=rb?1.4826*med(lg.map(x=>Math.abs(x-m))):sd(lg,m);
+  if(rb&&!(s>0))s=sd(lg,m);clim[w]=Math.expm1(m);if(s>0&&B.length>=5)B.forEach((y,j)=>z[y-2000][w]=(lg[j]-m)/s)}
+ const sm=Array.from(clim,(_,w)=>mean(clim.slice(Math.max(w-1,0),Math.min(w+2,52)))),pk=Math.max(...sm),tier=f=>pk>0?sm.map((x,w)=>x>=f*pk?w:-1).filter(w=>w>=0):[];
+ const an=[];B.forEach(y=>{for(let w=0;w<52;w++)if(z[y-2000][w]>=zt&&wk[y-2000][w]>=mi)an.push({y,w,v:wk[y-2000][w],z:z[y-2000][w]})});an.sort((a,b)=>b.z-a.z);
+ return{z,crit:tier(.5),core:tier(.75),an}}
+function refresh(){
+ if(!N)return;let y0=+$('y0').value,y1=+$('y1').value;if(y0>y1){y1=y0;$('y1').value=y1}
+ const ns=$('ns').checked,zt=+$('z').value,mi=+$('mi2').value,v=V[SENS];$('zv').textContent=zt.toFixed(1);$('mv').textContent=mi;
+ if(FOCUS&&(FOCUS.y<y0||FOCUS.y>y1))FOCUS=null;
+ const wk=[...Array(26)].map(()=>new Float64Array(52)),mo=[...Array(26)].map(()=>new Float64Array(12));let cnt=0;
+ for(let i=0;i<N;i++){if(!SEL[i]||(ns&&ST[i]))continue;const y=Y[i],m=M[i]-1;if(y<2000||y>2025)continue;
+  if(SENS=='raw_viirs'&&y<2012)continue;const x=v[i];if(x<=0)continue;wk[y-2000][W[i]]+=x;mo[y-2000][m]+=x;if(y>=y0&&y<=y1)cnt++}
+ const B=[];for(let y=Math.max(y0,2003);y<=y1;y++)B.push(y);if(SENS=='raw_viirs')while(B.length&&B[0]<2012)B.shift();
+ const{z,crit,core,an}=stats(wk,B,METH=='r',zt,mi);
+ const mm=[...Array(12)].map((_,m)=>B.map(y=>mo[y-2000][m])),mdM=mm.map(med);
+ CUR={mo,mdM,y0,y1};
+ const km2=calcAreaKm2(AOI),dens=km2>0?(cnt/(km2/1000)).toFixed(1):'0';
+ $('k1').textContent=AOI?AOIL:l('Türkiye & surroundings','Türkiye ve çevresi');
+ $('k1s').textContent=`📐 ${fmt(km2)} km²`;
+ $('k2').textContent=fmt(cnt);
+ $('k2s').textContent=`${dens} / 1,000 km²`;
+ const ssn=a=>a.length?`${fd(dt(2021,a[0]))} – ${fd(dt(2021,a[a.length-1],1))} · ${l('wk','hf')} ${rng(a)}`:'–';$('k3').textContent=ssn(crit);$('k5').textContent=ssn(core);$('k4').textContent=B.length>=5?an.length:'–';
+ $('nst').textContent=`(${NST} ${l('cells','hücre')})`;$('sb').innerHTML=SK.map((k,i)=>`<button class="${k==SENS?'on':''}" onclick="SENS='${k}';refresh()">${t('se'+i)}</button>`).join('');
+ $('vw').className=VIEW=='w'?'on':'';$('vm').className=VIEW=='m'?'on':'';$('mc').className=METH=='c'?'on':'';$('mr').className=METH=='r'?'on':'';
+ // now vs history
+ const cy=+$('cy').value,cm=+$('cm').value,tv=mo[cy-2000][cm-1],ar=[];for(let y=2003;y<=2025;y++)if(y!=cy&&!(SENS=='raw_viirs'&&y<2012))ar.push(mo[y-2000][cm-1]);
+ const md=med(ar),r=md>0?tv/md:null,rk=ar.length?Math.round(100*ar.filter(x=>x<=tv).length/ar.length):0;
+ const vd=r==null?l('no baseline','taban yok'):r>=2?l('▲▲ much above median','▲▲ medyanın çok üstünde'):r>=1.25?l('▲ above median','▲ medyanın üstünde'):r<=.75?l('▼ below median','▼ medyanın altında'):l('● near median','● medyana yakın');
+ $('nr').innerHTML=`<span class="big">${MN[LANG][cm-1]} ${cy}: ${fmt(tv)}</span> <b>${vd}</b><br><small>${l('Historical median for this month','Bu ayın tarihsel medyanı')}: ${fmt(md)}${r!=null?` · ${Math.round(r*100)}%`:''} · ${l('higher than','daha yüksek')} ${rk}% ${l('of other years (2003–2025)','diğer yılların (2003–2025)')}.<br>${l('Dataset ends','Veri bitişi')}: ${D[N-1]} — ${l('use the "NASA FIRMS live map" button (top right) for near-real-time fire tracking.','anlık yangın takibi için sağ üstteki "NASA FIRMS canlı haritası" düğmesini kullanabilirsiniz.')}</small>`;
+ // calendar
+ const tab=VIEW=='w'?wk:mo,nc=VIEW=='w'?52:12;const vs=[];for(let y=y0;y<=y1;y++)for(let c=0;c<nc;c++)vs.push(tab[y-2000][c]);const S=mkScale(vs);
+ updLegend(S);
+ let h='<table class="cal" role="grid"><tr><th></th>'+[...Array(nc)].map((_,c)=>VIEW=='w'?`<th class="${core.includes(c)?'co':crit.includes(c)?'cr':''}" title="${l('Week','Hafta')} ${c+1}: ${wr(2021,c)}${core.includes(c)?' · '+l('core','çekirdek'):crit.includes(c)?' · '+l('critical','kritik'):''}">${(c+1)%4==1?c+1:core.includes(c)?'●':''}</th>`:`<th>${MN[LANG][c]}</th>`).join('')+'</tr>';
+ for(let y=y1;y>=y0;y--){const ok=!(SENS=='raw_viirs'&&y<2012),sn=SENS=='intensity'&&y<2012?scNote(y):'';h+=`<tr><th${sn?` title="${sn}"`:''}>${y}${y<2003?' ⚠':''}${y<2012&&SENS=='intensity'?' ◇':''}</th>`;
+  for(let c=0;c<nc;c++){const x=tab[y-2000][c],[bg,fg]=ok?cc(x,S):['#0d0b0a','#57504a'],zz=VIEW=='w'?z[y-2000][c]:0,hit=VIEW=='w'&&zz>=zt&&x>=mi;
+   const cl=hit?(zz>=zt+1.5?'a3':zz>=zt+.75?'a2':'a1'):'',tp=VIEW=='w'?`${y} · ${l('week','hafta')} ${c+1} (${wr(y,c)}): ${fmt(x)}${hit?` · z=${zz.toFixed(1)}`:''}`:`${MN[LANG][c]} ${y}: ${fmt(x)} · ${l('median','medyan')} ${fmt(mdM[c])}${mdM[c]>0?` (${Math.round(100*x/mdM[c])}%)`:''}`;
+   h+=`<td data-y="${y}" data-c="${c}" class="${cl}" style="background:${bg};color:${fg}" title="${tp}${sn?'&#10;'+sn:''}">${!ok?'×':VIEW=='m'&&x>0?(x>=1e3?(x/1e3).toFixed(1)+'k':Math.round(x)):''}</td>`}h+='</tr>'}
+ $('cal').innerHTML=h+'</table>';
+ // charts
+ const lay={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#e6ddd3',size:11,family:FONT},margin:{l:50,r:8,t:30,b:36},legend:{orientation:'h',y:-.25}},cf={responsive:true,displaylogo:false},X=MN[LANG];
+ Plotly.react('ch1',[{x:X,y:mm.map(a=>q(a,.9)),mode:'lines',line:{width:0},showlegend:false,hoverinfo:'skip'},{x:X,y:mm.map(a=>q(a,.1)),fill:'tonexty',fillcolor:'rgba(147,197,253,.28)',line:{width:0},name:'P10–P90'},{x:X,y:mdM,name:l('median','medyan'),line:{color:'#93c5fd',width:2}},{x:X,y:Array.from(mo[cy-2000]),name:String(cy),line:{color:'#fbbf24',width:3,dash:'dot'}}],{...lay,title:{text:l('Seasonal cycle (monthly hotspots)','Mevsimsel döngü (aylık sıcak nokta)'),font:{size:12}}},cf);
+ const yr=[],tot=[];for(let y=y0;y<=y1;y++){yr.push(y);tot.push(wk[y-2000].reduce((a,b)=>a+b,0))}
+ const mt=med(yr.map((y,i)=>y>=2003?tot[i]:null).filter(x=>x!=null));
+ Plotly.react('ch2',[{x:yr,y:tot,type:'bar',name:l('Hotspots','Sıcak nokta'),marker:{color:yr.map(y=>y<2003?'#64748b':y<2012&&SENS=='intensity'?'#a78bfa':'#2dd4bf')}},{x:yr,y:yr.map(()=>mt),mode:'lines',name:l('median','medyan'),line:{color:'#fbbf24',dash:'dash'}}],{...lay,title:{text:l('Yearly totals (purple = MODIS-scaled)','Yıllık toplam (mor = MODIS\'ten ölçekli)'),font:{size:12}}},cf);
+ const t5y=yr.map((y,i)=>[y,tot[i]]).sort((a,b)=>b[1]-a[1]).slice(0,5),tm=[];for(let y=y0;y<=y1;y++)for(let m=0;m<12;m++)tm.push([y,m,mo[y-2000][m]]);tm.sort((a,b)=>b[2]-a[2]);
+ $('top5').innerHTML=`<b>${l('Top 5 years','En yoğun 5 yıl')}:</b> ${t5y.map(a=>`${a[0]} (${fmt(a[1])})`).join(' · ')}<br><b>${l('Top 5 months','En yoğun 5 ay')}:</b> ${tm.slice(0,5).map(a=>`${MN[LANG][a[1]]} ${a[0]} (${fmt(a[2])})`).join(' · ')}`;
+ // anomalies
+ $('al').innerHTML=B.length<5?`<small>${l('Select at least 5 years from 2003 onward to compute anomalies.','Anomali için 2003 sonrasından en az 5 yıl seçin.')}</small>`:an.length?`<ul>${an.slice(0,25).map(a=>`<li style="cursor:pointer" onclick="focusWeek(${a.y},${a.w})" title="${l('Click to map this week','Haritada görmek için tıklayın')}">${a.z>=zt+1.5?'★ ':''}<b>${a.y}</b> · ${l('week','hafta')} ${a.w+1} <small>(JS:${a.w})</small> (${wr(a.y,a.w)}) — ${fmt(a.v)} ${l('hotspots','sıcak nokta')} · z=${a.z.toFixed(2)}${a.y<2012&&SENS=='intensity'?' ◇':''}</li>`).join('')}</ul>`:`<small>${l('No unusual weeks at this sensitivity.','Bu duyarlılıkta olağandışı hafta yok.')}</small>`;
+ renderVal();
+
+ if(REF)$('ref').innerHTML=`<b>${l('Reference check','Referans kontrolü')} (${l('whole region, 2003–2025, harmonized, team method z ≥ 2, min 20','tüm bölge, 2003–2025, uyumlaştırılmış, ekip yöntemi z ≥ 2, min 20')}):</b> ${l('critical weeks','kritik haftalar')} <b>${rng(REF.crit)}</b> <small>[JS 0-based: ${rng0(REF.crit)}]</small> · ${l('core weeks','çekirdek haftalar')} <b>${rng(REF.core)}</b> <small>[JS 0-based: ${rng0(REF.core)}]</small> · <b>${REF.an.length}</b> ${l('unusual weeks','olağandışı hafta')}`;
+ drawMap();post()}
+MLG.addTo(map);
+function drawMap(){LG.clearLayers();if(!N)return;HIZ=map.getZoom()>=9;const y0=+$('y0').value,y1=+$('y1').value,ns=$('ns').checked,v=V[SENS],c=new Map();
+ for(let i=0;i<N;i++){const y=Y[i];if(!SEL[i]||y<y0||y>y1||(ns&&ST[i])||v[i]<=0||(SENS=='raw_viirs'&&y<2012))continue;
+  if(FOCUS&&!(FOCUS.y==y&&(FOCUS.w!=null?FOCUS.w==W[i]:FOCUS.m==M[i])))continue;c.set(K[i],(c.get(K[i])||0)+v[i])}
+ const a=[...c].sort((p,s)=>s[1]-p[1]).slice(0,2500),S=mkScale(a.map(z=>z[1]));
+ a.forEach(([k,s])=>{const[la,lo]=k.split('_').map(Number);L.rectangle([[la-.125,lo-.125],[la+.125,lo+.125]],{stroke:HIZ,color:cc(s,S)[0],weight:1.5,fillColor:cc(s,S)[0],fillOpacity:OPAC*(HIZ?.45:1)}).bindTooltip(`${fmt(s)} · ${la}°N ${lo}°E`).addTo(LG)});
+ $('mi').textContent=FOCUS?`${l('Map: only','Harita: yalnızca')} ${FOCUS.y} ${FOCUS.w!=null?l('week','hafta')+' '+(FOCUS.w+1):MN[LANG][FOCUS.m-1]} (${a.length} ${l('cells','hücre')})`:`${l('Map: all selected years','Harita: seçili tüm yıllar')} (${a.length} ${l('cells','hücre')})`;$('mclr').hidden=!FOCUS;updMapLegend(S,FOCUS?l('Hotspots per cell, selected '+(FOCUS.w!=null?'week':'month'),'Hücre başına sıcak nokta, seçili '+(FOCUS.w!=null?'hafta':'ay')):l('Hotspots per cell, all selected years','Hücre başına sıcak nokta, seçili tüm yıllar'));updImg()}
+function dl(n,x){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([x],{type:'text/csv'}));a.download=n;a.click()}
+function dlRows(){const y0=+$('y0').value,y1=+$('y1').value,ns=$('ns').checked,o=['date,cell_id,lat,lon,harmonized_intensity,raw_modis,raw_viirs,persistent_source'];
+ for(let i=0;i<N;i++)if(SEL[i]&&Y[i]>=y0&&Y[i]<=y1&&!(ns&&ST[i]))o.push([D[i],K[i],LA[i].toFixed(3),LO[i].toFixed(3),V.intensity[i].toFixed(2),V.raw_modis[i],V.raw_viirs[i],ST[i]].join(','));dl('hotspots_selection.csv',o.join('\n'))}
+function dlSum(){const o=['year,month,hotspots,median_for_month,percent_of_median'];for(let y=CUR.y0;y<=CUR.y1;y++)for(let m=0;m<12;m++){const x=CUR.mo[y-2000][m],d=CUR.mdM[m];o.push([y,m+1,x.toFixed(1),d.toFixed(1),d>0?(100*x/d).toFixed(0):''].join(','))}dl('monthly_summary.csv',o.join('\n'))}
+// ===== Validation table + yearly-ratio chart: every number is read from data/*.csv =====
+function csvRows(x){return x.replace(/^﻿/,'').trim().split(/\r?\n/).map(r=>{const o=[];let c='',q=false;for(const ch of r){if(ch=='"')q=!q;else if(ch==','&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o.map(s=>s.trim())})}
+function parseVal(txt){
+ const R=csvRows(txt),h=R[0].map(s=>s.toLowerCase()),iS=h.indexOf('sema'),iM=h.indexOf('yontem'),iW=h.findIndex(s=>s.startsWith('wape')),iB=h.findIndex(s=>s.startsWith('bias'));
+ if([iS,iM,iW,iB].some(i=>i<0))throw new Error('validation_summary_v2.csv: unexpected header');
+ const S=new Map();
+ R.slice(1).forEach(r=>{const m=(r[iM]||'').toLowerCase();
+  if(m!='tek'&&m!='aylik')return; // only the two methods the product uses; experimental rows of the CSV are never shown
+  const id=((r[iS]||'').match(/^\s*(\d+)/)||[])[1],w=parseFloat(r[iW]),b=parseFloat(r[iB]);if(!id||!isFinite(w)||!isFinite(b))return;
+  if(!S.has(id))S.set(id,{id,raw:r[iS]});S.get(id)[m]={w,b}});
+ const o=[...S.values()].filter(s=>s.tek&&s.aylik).sort((a,b)=>a.id-b.id);if(!o.length)throw new Error('validation_summary_v2.csv: no usable rows');return o}
+function parseYR(txt){
+ const R=csvRows(txt),h=R[0].map(s=>s.toLowerCase());let iY=h.findIndex(s=>/^(year|yil|yıl)$/.test(s)),iR=h.findIndex(s=>/ratio|oran/.test(s));
+ if(iY<0)iY=0;if(iR<0)iR=h.length-1;
+ const o=R.slice(1).map(r=>({y:+r[iY],r:parseFloat(r[iR])})).filter(a=>a.y>=2012&&a.y<=2025&&isFinite(a.r)).sort((a,b)=>a.y-b.y);
+ if(!o.some(a=>a.y<=2018)||!o.some(a=>a.y>=2019))throw new Error('yearly_ratio_v2.csv: need years on both sides of 2018/2019');return o}
+const n1=x=>x.toFixed(1).replace('.',LANG=='tr'?',':'.'),n2=x=>x.toFixed(2).replace('.',LANG=='tr'?',':'.');
+const pf=(x,sg)=>{const a=n1(Math.abs(x)),s=sg?(x>0?'+':x<0?'−':''):'';return LANG=='tr'?`${s}%${a}`:`${s}${a}%`};
+const fill=(s,o)=>s.replace(/\{(\w+)\}/g,(_,k)=>o[k]);
+const sch=id=>VAL&&(VAL.find(s=>s.id==id)||null),S1=()=>sch('1')||VAL[0],tol=()=>String(Math.round(S1().aylik.w));
+// hover note for MODIS-scaled years (2000-2011): the number is the fixed-split monthly-factor WAPE from the CSV, rounded
+function scNote(y){
+ let s=VAL?fill(t('sc1'),{n:tol()})+'&#10;'+(AOI?t('sc2a'):t('sc2')):t('sc1b');
+ if(y<2003)s+='&#10;'+t('sc0');
+ return s.replace(/"/g,'&quot;')}
+function renderVal(){
+ const sig=LANG+(VAL?1:0)+(YR?1:0)+VERR;if(sig==VSIG)return;VSIG=sig;
+ const show=VAL&&YR,dv=document.querySelector('details.vals');
+ $('vt').parentNode.style.display=show?'':'none';$('rc').style.display=show?'':'none';$('rc_hd').style.display=show?'':'none';dv.style.display=show?'':'none';
+ $('vt').innerHTML='';$('vt_notes').innerHTML='';$('rc_cap').innerHTML='';
+ if(!show){try{Plotly.purge('rc')}catch(e){}
+  $('vt_foot').innerHTML=VERR?t('vt_err'):l('Loading validation data…','Doğrulama verileri yükleniyor…');return}
+ const s1=S1(),s2=sch('2'),s3=sch('3');
+ $('vt').innerHTML=`<thead><tr><th class="rh" rowspan="2">${t('vt_corner')}</th>${VAL.map(s=>`<th colspan="2">${T['vs'+s.id]?t('vs'+s.id):s.raw}</th>`).join('')}</tr><tr>${VAL.map(()=>'<th>WAPE</th><th>Bias</th>').join('')}</tr></thead><tbody>${[['tek','vt_f1',''],['aylik','vt_f2','used']].map(([k,lab,cls])=>`<tr class="${cls}"><th class="rh" scope="row">${t(lab)}</th>${VAL.map(s=>`<td>${pf(s[k].w)}</td><td>${pf(s[k].b,1)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+ const mxw=Math.max(...VAL.map(s=>s.aylik.w));
+ $('vt_foot').innerHTML=t('vt_def')+'<br>'+fill(t('vt_foot'),{n:tol()})+(s1.aylik.w>=mxw?t('vt_foot2'):'');
+ const ab=Math.abs,pos=s1.tek.b>0&&s1.aylik.b>0,shr=!!(s2&&s3)&&['tek','aylik'].every(k=>ab(s1[k].b)>ab(s2[k].b)&&ab(s2[k].b)>ab(s3[k].b));
+ $('vt_notes').innerHTML=[t('vt_n1'),t('vt_n2'),pos?t(shr?'vt_n3':'vt_n3b'):''].filter(Boolean).map(x=>`<li>${x}</li>`).join('');
+ // yearly VIIRS/MODIS ratio: bars + one mean line per period, means computed here from the CSV
+ const A=YR.filter(a=>a.y<=2018),B=YR.filter(a=>a.y>=2019),ma=mean(A.map(a=>a.r)),mb=mean(B.map(a=>a.r)),top=Math.max(...YR.map(a=>a.r));
+ const CA='#3b82f6',CB='#d97706',LA='#bfdbfe',LB='#fde68a',x0=A[0].y-.5,x1=A[A.length-1].y+.5,x2=B[B.length-1].y+.5,hv='%{x}: %{y:.2f}<extra></extra>';
+ const lab=(c,v)=>({xref:'x',yref:'y',y:v,showarrow:false,yanchor:'bottom',font:{color:'#e2e8f0',size:11},text:`<span style="color:${c}">━━</span> ${t('rc_mean')} ${n2(v)}`});
+ Plotly.react('rc',[
+  {x:A.map(a=>a.y),y:A.map(a=>a.r),type:'bar',name:t('rc_la'),marker:{color:CA},hovertemplate:hv},
+  {x:B.map(a=>a.y),y:B.map(a=>a.r),type:'bar',name:t('rc_lb'),marker:{color:CB},hovertemplate:hv}],
+  {paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#e6ddd3',size:11,family:FONT},margin:{l:56,r:10,t:8,b:64},barmode:'overlay',bargap:.35,legend:{orientation:'h',y:-.18},
+   xaxis:{dtick:1,range:[x0,x2],showgrid:false,tickfont:{size:10}},
+   yaxis:{title:{text:t('rc_y'),font:{size:11}},range:[0,top*1.12],gridcolor:'rgba(148,163,184,.18)',zeroline:false},
+   shapes:[{type:'line',xref:'x',yref:'y',x0,x1,y0:ma,y1:ma,line:{color:LA,width:2,dash:'dash'}},{type:'line',xref:'x',yref:'y',x0:x1,x1:x2,y0:mb,y1:mb,line:{color:LB,width:2,dash:'dash'}}],
+   annotations:[{...lab(LA,ma),x:x0+.1,xanchor:'left'},{...lab(LB,mb),x:x2-.1,xanchor:'right'}]},
+  {responsive:true,displaylogo:false});
+ $('rc').setAttribute('aria-label',t('rc_h')+': '+YR.map(a=>a.y+' '+n2(a.r)).join(', '));
+ const d=100*(mb/ma-1),rg=a=>`${n2(Math.min(...a))}–${n2(Math.max(...a))}`;
+ let cap=fill(t('rc_c1'),{a:n2(ma),b:n2(mb),d:pf(d,1),ar:rg(A.map(a=>a.r)),br:rg(B.map(a=>a.r))});
+ if(mb<ma&&pos)cap+=fill(t('rc_c2'),{bt:pf(s1.tek.b,1),bm:pf(s1.aylik.b,1)}); // the cause is only stated when the data really show it
+ $('rc_cap').innerHTML=cap;
+ $('rc_tbl').innerHTML=`<tr><th class="rh">${t('rc_yr')}</th>${YR.map(a=>`<th>${a.y}</th>`).join('')}</tr><tr><th class="rh">VIIRS / MODIS</th>${YR.map(a=>`<td>${n2(a.r)}</td>`).join('')}</tr>`}
+$('vbox').closest('details').addEventListener('toggle',e=>{if(e.target.open&&$('rc').data)try{Plotly.Plots.resize('rc')}catch(x){}});
+Promise.all(['data/validation_summary_v2.csv','data/yearly_ratio_v2.csv'].map(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u);return r.text()}))).then(([a,b])=>{VAL=parseVal(a);YR=parseYR(b)}).catch(e=>{VERR=1;console.warn(e)}).then(()=>{VSIG='';if(N)refresh()});
+applyLang();
+</script></body></html>
