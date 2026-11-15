@@ -27,6 +27,12 @@ This notebook produces every data file the app ships with, from the NASA FIRMS A
      (V2) on the raw records, region and 1 deg blocks, three schemes, paired fold differences.
      The cell prints its results; they are transcribed in data/daynight_test_v2.csv,
      data/daynight_paired_v2.csv and data/daynight_factors_v2.csv.
+  7. FRP-class test (last two cells): MODIS detections split into low / mid / high fire radiative power
+     (33rd and 67th percentiles of the training years' MODIS FRP, recomputed in every fold), then
+     V ~ sum of class counts x coefficients (V3a: 3 coefficients; V3b: 3 per season), non-negative least
+     squares, fitted on 1 deg block-months or on regional monthly totals; compared with the monthly
+     factor (V0). The second cell runs both fits. Printed results are transcribed in
+     data/frp_test_v2.csv, data/frp_paired_v2.csv and data/frp_classes_v2.csv.
 
 Requirements: a free NASA FIRMS MAP_KEY stored in Colab Secrets as FIRMS_KEY (it is never written
 in this file), Google Drive, pandas, numpy, matplotlib, requests.
@@ -1073,3 +1079,445 @@ for sname, scheme in schemes:
              - fold_wape(cache[(sname, 'V0 aylık faktör (mevcut)')], level))
         se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
         print(f'{sname:26s} {level:6s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
+
+# FRP sınıfına göre dönüşüm faktörü testi (V3a, V3b) ve V0 ile karşılaştırma.
+# Gece/gündüz hücresiyle aynı iskelet: blok x ay tablosu, üç şema, bölge ve blok WAPE/bias, eşleştirilmiş kat farkı.
+# Sınır değerleri HER KATTA yalnızca o katın eğitim yıllarındaki MODIS FRP'sinden (%33 ve %67) yeniden hesaplanır (sızıntı yok).
+
+import glob
+import numpy as np
+import pandas as pd
+from scipy.optimize import nnls
+from google.colab import drive
+
+drive.mount('/content/drive')
+RAW = '/content/drive/MyDrive/nasa_v2/raw/'
+
+def load(source):
+    frames = []
+    for f in sorted(glob.glob(f'{RAW}{source}_*.csv')):
+        try:
+            frames.append(pd.read_csv(f))
+        except pd.errors.EmptyDataError:
+            pass
+    return pd.concat(frames, ignore_index=True)
+
+modis = load('MODIS_SP')
+viirs = load('VIIRS_SNPP_SP')
+modis['confidence'] = pd.to_numeric(modis['confidence'], errors='coerce')
+modis = modis[(modis['confidence'] >= 30) & (modis['type'] == 0)].copy()
+viirs = viirs[viirs['confidence'].astype(str).str.lower().isin(['n', 'h', 'nominal', 'high'])
+              & (viirs['type'] == 0)].copy()
+print('Temiz tespit sayısı:', len(modis), len(viirs), '(beklenen: 284313 590023)')
+
+def prep(d):
+    d = d.copy()
+    dt = pd.to_datetime(d['acq_date'])
+    d['year'] = dt.dt.year
+    d['month'] = dt.dt.month
+    d['blok'] = (np.floor(d['latitude']).astype(int).astype(str) + '_' +
+                 np.floor(d['longitude']).astype(int).astype(str))
+    return d[d['year'].between(2012, 2025)]
+
+modis = prep(modis)
+viirs = prep(viirs)
+modis = modis[modis['frp'].notna()].copy()   # FRP'siz MODIS satırı varsa sınıflanamaz
+
+# Temel blok x ay tablosu (sıfırlar dahil), gece/gündüz hücresiyle aynı kural
+key = ['blok', 'year', 'month']
+base = pd.concat({'V': viirs.groupby(key).size(), 'M': modis.groupby(key).size()}, axis=1).fillna(0).reset_index()
+tot = base.groupby(['year', 'month'])[['V', 'M']].sum()
+ok = tot[(tot['V'] > 0) & (tot['M'] > 0)].reset_index()[['year', 'month']]
+tam = pd.DataFrame({'blok': base['blok'].unique()}).merge(ok, how='cross')
+base = tam.merge(base, on=key, how='left').fillna(0)
+base['season'] = base['month'].map(lambda m: {12: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 1,
+                                              6: 2, 7: 2, 8: 2, 9: 3, 10: 3, 11: 3}[m])  # 0=DJF 1=MAM 2=JJA 3=SON
+
+SINIF = ['M_dusuk', 'M_orta', 'M_yuksek']
+
+# Katsayılar hangi satırlarla öğrenilsin?
+#  'blok'  : blok x ay satırları (istemdeki gibi)
+#  'bolge' : önce (yıl, ay) bazında bölge toplamına indirilir, sonra nnls (ortalamayı korur; blok düzeyindeki nnls küçük/seyrek karelerde katsayıyı aşağı çekebilir)
+FIT = 'blok'
+def fit_rows(tr):
+    if FIT == 'bolge':
+        return tr.groupby(['year', 'month', 'season'], as_index=False)[SINIF + ['V']].sum()
+    return tr
+
+def thresholds(train_years):
+    fr = modis.loc[modis['year'].isin(train_years), 'frp']
+    return np.quantile(fr, [0.33, 0.67])
+
+_cache = {}
+def build(train_years):
+    """Bu katın eğitim yıllarından sınır hesapla, blok x ay x sınıf sayılarını tabloya ekle."""
+    k = tuple(train_years)
+    if k in _cache:
+        return _cache[k]
+    q1, q2 = thresholds(train_years)
+    cls = np.where(modis['frp'] < q1, 0, np.where(modis['frp'] < q2, 1, 2))   # düşük < q33 <= orta < q67 <= yüksek
+    c = (modis.assign(sinif=cls).groupby(key + ['sinif']).size().unstack(fill_value=0)
+              .reindex(columns=[0, 1, 2], fill_value=0))
+    c.columns = SINIF
+    T = base.merge(c.reset_index(), on=key, how='left')
+    T[SINIF] = T[SINIF].fillna(0)
+    _cache[k] = (T, q1, q2)
+    return _cache[k]
+
+# --- Modeller ---
+def rm(tr, num, den):
+    g = tr.groupby('month')[[num, den]].sum()
+    return g[num] / g[den].replace(0, np.nan)
+
+def pred_V0(tr, te):
+    return te['M'] * te['month'].map(rm(tr, 'V', 'M')), None
+
+def fit_a(tr):
+    tr = fit_rows(tr)
+    coef, _ = nnls(tr[SINIF].to_numpy(float), tr['V'].to_numpy(float))
+    return coef
+
+def pred_V3a(tr, te):
+    coef = fit_a(tr)
+    return te[SINIF].to_numpy(float) @ coef, coef
+
+def design_b(d):
+    X = np.zeros((len(d), 12))
+    S = d['season'].to_numpy()
+    M = d[SINIF].to_numpy(float)
+    for s in range(4):
+        m = S == s
+        X[m, s * 3:(s + 1) * 3] = M[m]
+    return X
+
+def fit_b(tr):
+    tr = fit_rows(tr)
+    coef, _ = nnls(design_b(tr), tr['V'].to_numpy(float))
+    return coef
+
+def pred_V3b(tr, te):
+    coef = fit_b(tr)
+    return design_b(te) @ coef, coef
+
+models = {'V0 aylık faktör (mevcut)': pred_V0,
+          'V3a FRP sınıfı (3 katsayı)': pred_V3a,
+          'V3b FRP sınıfı x mevsim (12 katsayı)': pred_V3b}
+
+# --- Şemalar: (eğitim yılları, test yılları) ---
+Y = list(range(2012, 2026))
+def fixed():
+    yield [y for y in Y if y <= 2018], [y for y in Y if y >= 2019]
+def expanding():
+    for y in range(2015, 2026):
+        yield [t for t in Y if t < y], [y]
+def loyo():
+    for y in Y:
+        yield [t for t in Y if t != y], [y]
+
+coef_log = {}
+def run(mname, model, sname, scheme):
+    rs = []
+    for i, (tr_y, te_y) in enumerate(scheme()):
+        T, _, _ = build(tr_y)
+        tr, te = T[T['year'].isin(tr_y)], T[T['year'].isin(te_y)]
+        r = te[['blok', 'year', 'month', 'V']].copy()
+        p, coef = model(tr, te)
+        r['P'] = np.asarray(p)
+        r['fold'] = i
+        if coef is not None:
+            coef_log.setdefault((sname, mname), []).append(coef)
+        rs.append(r)
+    return pd.concat(rs)
+
+def wape(r):
+    return (r['P'] - r['V']).abs().sum() / r['V'].sum() * 100
+
+def bias(r):
+    return (r['P'].sum() - r['V'].sum()) / r['V'].sum() * 100
+
+def region(r):
+    return r.groupby(['fold', 'year', 'month'])[['V', 'P']].sum().reset_index()
+
+def fold_wape(r, level):
+    out = {}
+    for f, s in r.groupby('fold'):
+        if level == 'bolge':
+            s = s.groupby(['year', 'month'])[['V', 'P']].sum().reset_index()
+        out[f] = wape(s)
+    return pd.Series(out)
+
+schemes = (('Sabit', fixed), ('Ileriye genisleyen', expanding), ('Her yili disarida birak', loyo))
+cache, rows = {}, []
+for sname, scheme in schemes:
+    for mname, m in models.items():
+        r = run(mname, m, sname, scheme)
+        cache[(sname, mname)] = r
+        rg = region(r)
+        rows.append({'sema': sname, 'model': mname, 'bolge_WAPE': wape(rg), 'bolge_bias': bias(rg),
+                     'blok_WAPE': wape(r), 'blok_bias': bias(r)})
+res = pd.DataFrame(rows).round(1)
+print('\nDoğrulama: Sabit şemada V0 için bölge WAPE 17,9, bias +7,6, blok WAPE 47,1 çıkmalı (çıkmazsa sonuçlara güvenme).')
+print('\nModel karşılaştırması:')
+print(res.to_string(index=False))
+
+print('\nEşleştirilmiş WAPE farkı (model - V0), yıllık katlar üzerinden (pozitif = V0 daha iyi):')
+V0 = 'V0 aylık faktör (mevcut)'
+for mname in list(models)[1:]:
+    print(mname)
+    for sname, scheme in schemes:
+        for level in ('bolge', 'blok'):
+            d = fold_wape(cache[(sname, mname)], level) - fold_wape(cache[(sname, V0)], level)
+            se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
+            print(f'  {sname:26s} {level:6s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
+
+# --- Tanı 1: sınıf sınırları (MW) ve sınıf payları (sabit şemanın eğitim yıllarındaki sınırlarla, 2012-2025 tüm MODIS) ---
+T, q1, q2 = build([y for y in Y if y <= 2018])
+print(f'\nSınıf sınırları (2012-2018 MODIS FRP): düşük < {q1:.2f} MW <= orta < {q2:.2f} MW <= yüksek')
+cls = np.where(modis['frp'] < q1, 'dusuk', np.where(modis['frp'] < q2, 'orta', 'yuksek'))
+pay = (pd.crosstab(modis['month'], cls, normalize='index') * 100).round(1)[['dusuk', 'orta', 'yuksek']]
+print('\nMODIS tespitlerinde FRP sınıfı payı (%), ay ay (2012-2025):')
+print(pay)
+print('\nHer katta hesaplanan sınırların aralığı (MW): q33',
+      '%.2f-%.2f' % (min(build(a)[1] for a, _ in loyo()), max(build(a)[1] for a, _ in loyo())),
+      '| q67', '%.2f-%.2f' % (min(build(a)[2] for a, _ in loyo()), max(build(a)[2] for a, _ in loyo())))
+
+# --- Tanı 2: katsayılar (sabit şemanın eğitimi 2012-2018) ---
+tr = T[T['year'] <= 2018]
+ka = fit_a(tr)
+print('\nV3a katsayıları (k1 düşük, k2 orta, k3 yüksek):', dict(zip(['k1', 'k2', 'k3'], ka.round(2))))
+print('k1 > k2 > k3 mi?', bool(ka[0] > ka[1] > ka[2]))
+kb = fit_b(tr).reshape(4, 3)
+tb = pd.DataFrame(kb, index=['DJF', 'MAM', 'JJA', 'SON'], columns=['k1_dusuk', 'k2_orta', 'k3_yuksek']).round(2)
+tb['k1>k2>k3'] = (tb['k1_dusuk'] > tb['k2_orta']) & (tb['k2_orta'] > tb['k3_yuksek'])
+print('\nV3b katsayıları (mevsim x sınıf):')
+print(tb)
+
+# Katsayıların kat bazında kararlılığı (her yılı dışarıda bırak)
+L = np.array(coef_log[('Her yili disarida birak', 'V3a FRP sınıfı (3 katsayı)')])
+print('\nV3a katsayı aralığı, her yılı dışarıda bırak (min-max):',
+      {f'k{i+1}': f'{L[:, i].min():.2f}-{L[:, i].max():.2f}' for i in range(3)})
+print('Sıralama k1>k2>k3 olan kat sayısı:', int(((L[:, 0] > L[:, 1]) & (L[:, 1] > L[:, 2])).sum()), '/', len(L))
+
+# FRP sınıfına göre dönüşüm faktörü testi (V3a, V3b) ve V0 ile karşılaştırma.
+# Gece/gündüz hücresiyle aynı iskelet: blok x ay tablosu, üç şema, bölge ve blok WAPE/bias, eşleştirilmiş kat farkı.
+# Sınır değerleri HER KATTA yalnızca o katın eğitim yıllarındaki MODIS FRP'sinden (%33 ve %67) yeniden hesaplanır (sızıntı yok).
+
+import glob
+import numpy as np
+import pandas as pd
+from scipy.optimize import nnls
+from google.colab import drive
+
+drive.mount('/content/drive')
+RAW = '/content/drive/MyDrive/nasa_v2/raw/'
+
+def load(source):
+    frames = []
+    for f in sorted(glob.glob(f'{RAW}{source}_*.csv')):
+        try:
+            frames.append(pd.read_csv(f))
+        except pd.errors.EmptyDataError:
+            pass
+    return pd.concat(frames, ignore_index=True)
+
+modis = load('MODIS_SP')
+viirs = load('VIIRS_SNPP_SP')
+modis['confidence'] = pd.to_numeric(modis['confidence'], errors='coerce')
+modis = modis[(modis['confidence'] >= 30) & (modis['type'] == 0)].copy()
+viirs = viirs[viirs['confidence'].astype(str).str.lower().isin(['n', 'h', 'nominal', 'high'])
+              & (viirs['type'] == 0)].copy()
+print('Temiz tespit sayısı:', len(modis), len(viirs), '(beklenen: 284313 590023)')
+
+def prep(d):
+    d = d.copy()
+    dt = pd.to_datetime(d['acq_date'])
+    d['year'] = dt.dt.year
+    d['month'] = dt.dt.month
+    d['blok'] = (np.floor(d['latitude']).astype(int).astype(str) + '_' +
+                 np.floor(d['longitude']).astype(int).astype(str))
+    return d[d['year'].between(2012, 2025)]
+
+modis = prep(modis)
+viirs = prep(viirs)
+modis = modis[modis['frp'].notna()].copy()   # FRP'siz MODIS satırı varsa sınıflanamaz
+
+# Temel blok x ay tablosu (sıfırlar dahil), gece/gündüz hücresiyle aynı kural
+key = ['blok', 'year', 'month']
+base = pd.concat({'V': viirs.groupby(key).size(), 'M': modis.groupby(key).size()}, axis=1).fillna(0).reset_index()
+tot = base.groupby(['year', 'month'])[['V', 'M']].sum()
+ok = tot[(tot['V'] > 0) & (tot['M'] > 0)].reset_index()[['year', 'month']]
+tam = pd.DataFrame({'blok': base['blok'].unique()}).merge(ok, how='cross')
+base = tam.merge(base, on=key, how='left').fillna(0)
+base['season'] = base['month'].map(lambda m: {12: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 1,
+                                              6: 2, 7: 2, 8: 2, 9: 3, 10: 3, 11: 3}[m])  # 0=DJF 1=MAM 2=JJA 3=SON
+
+SINIF = ['M_dusuk', 'M_orta', 'M_yuksek']
+
+# Katsayılar hangi satırlarla öğrenilsin?
+#  'blok'  : blok x ay satırları (istemdeki gibi)
+#  'bolge' : önce (yıl, ay) bazında bölge toplamına indirilir, sonra nnls (ortalamayı korur; blok düzeyindeki nnls küçük/seyrek karelerde katsayıyı aşağı çekebilir)
+FIT = 'blok'   # aşağıdaki döngü bunu otomatik olarak 'blok' ve 'bolge' yapar, elle değiştirme
+def fit_rows(tr):
+    if FIT == 'bolge':
+        return tr.groupby(['year', 'month', 'season'], as_index=False)[SINIF + ['V']].sum()
+    return tr
+
+def thresholds(train_years):
+    fr = modis.loc[modis['year'].isin(train_years), 'frp']
+    return np.quantile(fr, [0.33, 0.67])
+
+_cache = {}
+def build(train_years):
+    """Bu katın eğitim yıllarından sınır hesapla, blok x ay x sınıf sayılarını tabloya ekle."""
+    k = tuple(train_years)
+    if k in _cache:
+        return _cache[k]
+    q1, q2 = thresholds(train_years)
+    cls = np.where(modis['frp'] < q1, 0, np.where(modis['frp'] < q2, 1, 2))   # düşük < q33 <= orta < q67 <= yüksek
+    c = (modis.assign(sinif=cls).groupby(key + ['sinif']).size().unstack(fill_value=0)
+              .reindex(columns=[0, 1, 2], fill_value=0))
+    c.columns = SINIF
+    T = base.merge(c.reset_index(), on=key, how='left')
+    T[SINIF] = T[SINIF].fillna(0)
+    _cache[k] = (T, q1, q2)
+    return _cache[k]
+
+# --- Modeller ---
+def rm(tr, num, den):
+    g = tr.groupby('month')[[num, den]].sum()
+    return g[num] / g[den].replace(0, np.nan)
+
+def pred_V0(tr, te):
+    return te['M'] * te['month'].map(rm(tr, 'V', 'M')), None
+
+def fit_a(tr):
+    tr = fit_rows(tr)
+    coef, _ = nnls(tr[SINIF].to_numpy(float), tr['V'].to_numpy(float))
+    return coef
+
+def pred_V3a(tr, te):
+    coef = fit_a(tr)
+    return te[SINIF].to_numpy(float) @ coef, coef
+
+def design_b(d):
+    X = np.zeros((len(d), 12))
+    S = d['season'].to_numpy()
+    M = d[SINIF].to_numpy(float)
+    for s in range(4):
+        m = S == s
+        X[m, s * 3:(s + 1) * 3] = M[m]
+    return X
+
+def fit_b(tr):
+    tr = fit_rows(tr)
+    coef, _ = nnls(design_b(tr), tr['V'].to_numpy(float))
+    return coef
+
+def pred_V3b(tr, te):
+    coef = fit_b(tr)
+    return design_b(te) @ coef, coef
+
+models = {'V0 aylık faktör (mevcut)': pred_V0,
+          'V3a FRP sınıfı (3 katsayı)': pred_V3a,
+          'V3b FRP sınıfı x mevsim (12 katsayı)': pred_V3b}
+
+# --- Şemalar: (eğitim yılları, test yılları) ---
+Y = list(range(2012, 2026))
+def fixed():
+    yield [y for y in Y if y <= 2018], [y for y in Y if y >= 2019]
+def expanding():
+    for y in range(2015, 2026):
+        yield [t for t in Y if t < y], [y]
+def loyo():
+    for y in Y:
+        yield [t for t in Y if t != y], [y]
+
+coef_log = {}
+def run(mname, model, sname, scheme):
+    rs = []
+    for i, (tr_y, te_y) in enumerate(scheme()):
+        T, _, _ = build(tr_y)
+        tr, te = T[T['year'].isin(tr_y)], T[T['year'].isin(te_y)]
+        r = te[['blok', 'year', 'month', 'V']].copy()
+        p, coef = model(tr, te)
+        r['P'] = np.asarray(p)
+        r['fold'] = i
+        if coef is not None:
+            coef_log.setdefault((sname, mname), []).append(coef)
+        rs.append(r)
+    return pd.concat(rs)
+
+def wape(r):
+    return (r['P'] - r['V']).abs().sum() / r['V'].sum() * 100
+
+def bias(r):
+    return (r['P'].sum() - r['V'].sum()) / r['V'].sum() * 100
+
+def region(r):
+    return r.groupby(['fold', 'year', 'month'])[['V', 'P']].sum().reset_index()
+
+def fold_wape(r, level):
+    out = {}
+    for f, s in r.groupby('fold'):
+        if level == 'bolge':
+            s = s.groupby(['year', 'month'])[['V', 'P']].sum().reset_index()
+        out[f] = wape(s)
+    return pd.Series(out)
+
+# --- Tanı 1: sınıf sınırları (MW) ve sınıf payları (sabit şemanın eğitim yıllarındaki sınırlarla, 2012-2025 tüm MODIS) ---
+T, q1, q2 = build([y for y in Y if y <= 2018])
+print(f'\nSınıf sınırları (2012-2018 MODIS FRP): düşük < {q1:.2f} MW <= orta < {q2:.2f} MW <= yüksek')
+cls = np.where(modis['frp'] < q1, 'dusuk', np.where(modis['frp'] < q2, 'orta', 'yuksek'))
+pay = (pd.crosstab(modis['month'], cls, normalize='index') * 100).round(1)[['dusuk', 'orta', 'yuksek']]
+print('\nMODIS tespitlerinde FRP sınıfı payı (%), ay ay (2012-2025):')
+print(pay)
+print('\nHer katta hesaplanan sınırların aralığı (MW): q33',
+      '%.2f-%.2f' % (min(build(a)[1] for a, _ in loyo()), max(build(a)[1] for a, _ in loyo())),
+      '| q67', '%.2f-%.2f' % (min(build(a)[2] for a, _ in loyo()), max(build(a)[2] for a, _ in loyo())))
+
+
+for FIT in ('blok', 'bolge'):
+    coef_log.clear()
+    print('\n' + '=' * 70)
+    print('KATSAYILAR', 'BLOK x AY satırlarıyla (istemdeki gibi)' if FIT == 'blok' else 'BÖLGE-AY toplamlarıyla', 'öğrenildi  [FIT =', FIT + ']')
+    print('=' * 70)
+    schemes = (('Sabit', fixed), ('Ileriye genisleyen', expanding), ('Her yili disarida birak', loyo))
+    cache, rows = {}, []
+    for sname, scheme in schemes:
+        for mname, m in models.items():
+            r = run(mname, m, sname, scheme)
+            cache[(sname, mname)] = r
+            rg = region(r)
+            rows.append({'sema': sname, 'model': mname, 'bolge_WAPE': wape(rg), 'bolge_bias': bias(rg),
+                         'blok_WAPE': wape(r), 'blok_bias': bias(r)})
+    res = pd.DataFrame(rows).round(1)
+    print('\nDoğrulama: Sabit şemada V0 için bölge WAPE 17,9, bias +7,6, blok WAPE 47,1 çıkmalı (çıkmazsa sonuçlara güvenme).')
+    print('\nModel karşılaştırması:')
+    print(res.to_string(index=False))
+
+    print('\nEşleştirilmiş WAPE farkı (model - V0), yıllık katlar üzerinden (pozitif = V0 daha iyi):')
+    V0 = 'V0 aylık faktör (mevcut)'
+    for mname in list(models)[1:]:
+        print(mname)
+        for sname, scheme in schemes:
+            for level in ('bolge', 'blok'):
+                d = fold_wape(cache[(sname, mname)], level) - fold_wape(cache[(sname, V0)], level)
+                se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
+                print(f'  {sname:26s} {level:6s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
+
+    # --- Tanı 2: katsayılar (sabit şemanın eğitimi 2012-2018) ---
+    tr = T[T['year'] <= 2018]
+    ka = fit_a(tr)
+    print('\nV3a katsayıları (k1 düşük, k2 orta, k3 yüksek):', dict(zip(['k1', 'k2', 'k3'], ka.round(2))))
+    print('k1 > k2 > k3 mi?', bool(ka[0] > ka[1] > ka[2]))
+    kb = fit_b(tr).reshape(4, 3)
+    tb = pd.DataFrame(kb, index=['DJF', 'MAM', 'JJA', 'SON'], columns=['k1_dusuk', 'k2_orta', 'k3_yuksek']).round(2)
+    tb['k1>k2>k3'] = (tb['k1_dusuk'] > tb['k2_orta']) & (tb['k2_orta'] > tb['k3_yuksek'])
+    print('\nV3b katsayıları (mevsim x sınıf):')
+    print(tb)
+
+    # Katsayıların kat bazında kararlılığı (her yılı dışarıda bırak)
+    L = np.array(coef_log[('Her yili disarida birak', 'V3a FRP sınıfı (3 katsayı)')])
+    print('\nV3a katsayı aralığı, her yılı dışarıda bırak (min-max):',
+          {f'k{i+1}': f'{L[:, i].min():.2f}-{L[:, i].max():.2f}' for i in range(3)})
+    print('Sıralama k1>k2>k3 olan kat sayısı:', int(((L[:, 0] > L[:, 1]) & (L[:, 1] > L[:, 2])).sum()), '/', len(L))

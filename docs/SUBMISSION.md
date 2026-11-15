@@ -20,7 +20,7 @@ MODIS has watched fires since 2000; VIIRS, since 2012, sees about 3.6× more of 
 1. **The problem** — 1 km vs. 375 m pixels, different sensitivity, different overpass times; MODIS retiring → 2000–2011 at risk.
 2. **Our bridge** — monthly VIIRS/MODIS factors (2.49 in June … 5.09 in April), Terra-only factors before 4 July 2002, VIIRS as is from 2012.
 3. **Does it hold?** — three held-out schemes, WAPE 17.9 / 16.7 / 15.4%; live overlap check for any drawn area.
-4. **We tried harder models** — 9-method table incl. day/night factors; gradient boosting wins on the region but not on small areas; sensitivity r = 0.996.
+4. **We tried harder models** — 10-method table incl. day/night and fire-intensity (FRP) factors; gradient boosting wins on the region but not on small areas; sensitivity r = 0.996.
 5. **Honest limits** — small areas ~45% monthly error; 2000–02 least certain (⚠); ratio drift tested (fire size, season mix) and only partly explained.
 6. **For the people who fight fires** — demo: area → calendar → "this month vs. median" → on this day → fire-frequency map → one-page report.
 7. **Beyond Türkiye and beyond MODIS** — any FIRMS region in the browser; continues on VIIRS S-NPP / NOAA-20 / NOAA-21.
@@ -40,6 +40,9 @@ We tested it. Not because of bigger fires: the large-fire share stayed at ~30% a
 
 **"The sensors pass at different times of day. Did you try day and night separately?"**
 Yes, on the raw FIRMS records. Separate day and night factors are worse in every scheme (region 25.3% vs. 17.9% in the forward test; +2.6 ± 1.0 points over 14 leave-one-year-out folds). The reason is itself a finding: VIIRS sees far more night fires than MODIS (January: 20.5% vs. 1.5% of detections), so in winter the night factors rest on a handful of MODIS detections and come out at 30–50. One factor per month pools day and night and stays stable.
+
+**"Doesn't the conversion depend on fire size? Did you use FRP?"**
+Yes, on the raw records: MODIS detections split into low / mid / high fire radiative power, one coefficient per class and season. It is worse than one factor per month (region 19.2% vs. 17.9% in the forward test; +4.1 ± 1.0 points over 14 folds). The reason: fire intensity is already encoded in the month — high-FRP detections are 47.5% in July and 10.5% in February — so the classes add no new information.
 
 **"Is fire activity increasing?"**
 For the whole region, 2003–2025: Theil–Sen +94 hotspots/year, Mann–Kendall p = 0.64, so no significant trend. Some sub-regions differ; the app tests any drawn area.
