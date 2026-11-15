@@ -3,9 +3,13 @@
 
     python tools/daynight_test.py MODIS_SP.csv VIIRS_SNPP_SP.csv [data/daynight_test_v2.csv]
 
-Input: the raw NASA FIRMS archive CSVs (the 0.25 deg grid does not keep the `daynight` column).
-Several files per sensor can be joined with commas: a.csv,b.csv. The same filters as the product
-are applied: type = 0, MODIS confidence >= 30, VIIRS confidence not low; only 2012-2025 are used.
+In Colab, with the yearly raw files written by pipeline/nasa2.py (quote the patterns):
+    !python daynight_test.py "/content/drive/MyDrive/nasa_v2/raw/MODIS_SP_*.csv" \
+                             "/content/drive/MyDrive/nasa_v2/raw/VIIRS_SNPP_SP_*.csv" daynight_test_v2.csv
+
+Input: the raw NASA FIRMS CSVs (the 0.25 deg grid does not keep the `daynight` column). Each argument
+may be a file, a comma-separated list or a glob pattern. The filters are those of pipeline/nasa2.py:
+type = 0, MODIS confidence >= 30, VIIRS confidence nominal/high; only 2012-2025 are used.
 
 Methods (factors always learned on training years only; predictions are regional monthly totals)
     monthly            V/M per calendar month                                  (the product)
@@ -24,6 +28,7 @@ VIIRS in held-out overlap years.
 
 AI/SI disclosure: this script was written with the help of Claude (Anthropic).
 """
+import glob
 import sys
 
 import numpy as np
@@ -33,12 +38,19 @@ K_SHRINK = 100.0
 
 
 def read(paths, viirs):
-    d = pd.concat([pd.read_csv(p, low_memory=False) for p in paths.split(",")], ignore_index=True)
+    files = sorted(f for p in paths.split(",") for f in (glob.glob(p) or [p]))
+    frames = []
+    for f in files:
+        try:
+            frames.append(pd.read_csv(f, low_memory=False))
+        except pd.errors.EmptyDataError:
+            pass
+    d = pd.concat(frames, ignore_index=True)
     d.columns = [c.strip().lower() for c in d.columns]
     if "type" in d:
         d = d[d["type"].fillna(0).astype(int) == 0]
     conf = d["confidence"].astype(str).str.strip().str.lower()
-    d = d[~conf.isin(["l", "low"])] if viirs else d[pd.to_numeric(conf, errors="coerce") >= 30]
+    d = d[conf.isin(["n", "h", "nominal", "high"])] if viirs else d[pd.to_numeric(conf, errors="coerce") >= 30]
     dt = pd.to_datetime(d["acq_date"])
     d = d.assign(year=dt.dt.year, month=dt.dt.month, dn=d["daynight"].astype(str).str.upper().str[0])
     d = d[d.year.between(2012, 2025) & d.dn.isin(["D", "N"])]
