@@ -121,6 +121,16 @@ table.vt small{display:block;font-weight:400;color:var(--smoke);font-size:.72rem
 .vbox ul{margin:6px 0}.vbox p.cap{margin:6px 0}
 details.vals{margin:6px 0}details.vals summary{color:var(--sky);font-size:.8rem;font-weight:500}
 #ref{margin-top:12px;padding:10px 12px;border-left:3px solid var(--ember);background:rgba(255,90,31,.08);border-radius:0 9px 9px 0}
+table.vt tr.exp th.rh,table.vt tr.exp td{color:var(--smoke)}
+table.vt td.best{color:var(--glow);font-weight:600}
+.note{margin:8px 0;padding:9px 11px;border-left:3px solid var(--sky);background:rgba(143,211,255,.07);border-radius:0 9px 9px 0;font-size:.82rem;line-height:1.55}
+.note ul{margin:4px 0}
+#tour{position:fixed;z-index:46;top:76px;left:58px;width:min(400px,calc(100vw - 24px));padding:14px 16px;border-radius:14px;font-size:.86rem;border-color:rgba(255,90,31,.55)}
+#tour[hidden]{display:none}#tour b.step{font-family:var(--disp);color:var(--glow);font-size:1.05rem;display:block;margin-bottom:4px}
+#tour .row{margin:10px 0 0;justify-content:flex-end}#tour #tnext{background:var(--ember);border-color:var(--ember);color:#1b0b03}
+#acts #demo{background:var(--ember);border-color:var(--ember);color:#1b0b03;white-space:nowrap}
+.trend{font-size:.8rem;color:var(--smoke);margin-top:4px}
+#own{width:100%;font-size:.78rem}
 
 /* calendar drawer */
 #cald{position:fixed;z-index:25;left:12px;right:calc(var(--side) + 12px);bottom:12px;height:0;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;transform:translateY(calc(100% + 24px));opacity:0;visibility:hidden;transition:transform .5s var(--ease),opacity .3s,right .5s var(--ease),height .45s var(--ease),visibility 0s .5s}
@@ -209,6 +219,7 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
  #toast{bottom:calc(var(--calh) + 74px)}
  .dh h2{font-size:1.2rem}.dh .scale{display:none}
  #hint{top:56px}
+ #tour{left:8px;top:58px;width:calc(100vw - 16px)}#acts #demo span{font-size:.75rem}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
 </style></head>
@@ -238,11 +249,13 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
   <div id="brand"><svg class="mark"><use href="#i-flame"/></svg><div><h1 data-i="tt"></h1><p data-i="ts"></p></div></div>
   <div id="stat" class="glass"><span id="crd" class="badge">Lat: 39.00°N, Lon: 35.00°E</span><span id="sum"></span></div>
   <div id="acts">
+    <button id="demo" onclick="tour(0)" title="Guided 4-step demo"><span data-i="demo"></span></button>
     <button id="fmb" onclick="openFIRMS()" title="Opens the official external NASA FIRMS website in a new tab (firms.modaps.eosdis.nasa.gov)"><svg class="ic"><use href="#i-ext"/></svg><span data-i="fmb"></span></button>
     <button id="lang" onclick="toggleLang()" aria-label="Language">TR</button>
   </div>
 </header>
 <div id="hint" class="glass" hidden><p data-i="how"></p><button onclick="hideHint()" data-i="hint_ok"></button></div>
+<div id="tour" class="glass" hidden role="dialog" aria-live="polite"><b class="step" id="tstep"></b><p id="ttxt"></p><div class="row"><button onclick="tourEnd()" data-i="t_close"></button><button id="tback" onclick="tour(TSTEP-1)" data-i="t_back"></button><button id="tnext" onclick="tour(TSTEP+1)"></button></div></div>
 
 <aside id="side" class="glass" aria-label="Panel">
   <div class="ph"><h2 id="pt"></h2><button class="icb" onclick="openPanel(null)" aria-label="Close panel"><svg class="ic"><use href="#i-x"/></svg></button></div>
@@ -278,12 +291,19 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
     <div class="row"><label><span data-i="from"></span> <select id="y0" onchange="refresh()"></select></label><label><span data-i="to"></span> <select id="y1" onchange="refresh()"></select></label></div>
     <div id="sb" class="row"></div>
     <label class="row"><input type="checkbox" id="ns" onchange="refresh()"><span><span data-i="static"></span> <small id="nst"></small></span></label>
+    <h3 data-i="mm_h"></h3>
+    <div class="row"><button id="mm_s" onclick="setMapMode('sum')" data-i="mm_sum"></button><button id="mm_f" onclick="setMapMode('freq')" data-i="mm_freq"></button></div>
+    <small data-i="mm_n" style="display:block;margin-bottom:6px"></small>
     <h3 data-i="base_h"></h3>
     <div class="row"><button id="bsat" onclick="setBase('sat')" data-i="b_sat"></button><button id="bdark" onclick="setBase('dark')" data-i="b_dark"></button></div>
     <label class="row"><input type="checkbox" id="lblc" checked onchange="setLbl(this.checked)"><span data-i="lbl"></span></label>
     <label class="row"><input type="checkbox" id="gibc" checked onchange="GIBSON=this.checked;updImg()"><span><span data-i="gibs"></span> <small id="gnote"></small></span></label>
     <label class="row" style="align-items:center"><span data-i="opac"></span> <input type="range" id="opr" min=".15" max="1" step=".05" value=".75" oninput="setOpac(this.value)"> <b id="opv">75%</b></label>
     <small data-i="tiles_n"></small>
+    <h3 data-i="own_h"></h3>
+    <p class="mut" data-i="own_p" style="margin-bottom:8px"></p>
+    <input type="file" id="own" accept=".csv,text/csv" multiple onchange="loadOwn(this.files)" aria-label="FIRMS CSV files">
+    <small id="own_s" style="display:block;margin-top:6px"></small>
   </section>
 
   <section class="pane" id="p-ins">
@@ -293,9 +313,13 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
       <div class="st"><small data-i="k4"></small><b id="k4" class="num"></b></div>
       <div class="st"><small data-i="k3"></small><b id="k3"></b></div>
       <div class="st"><small data-i="k5"></small><b id="k5"></b></div>
+      <div class="st w2"><small data-i="k6"></small><b id="k6"></b><div id="k6s" class="trend"></div></div>
     </div>
+    <button onclick="report()" style="width:100%;margin-bottom:10px;background:var(--ember);border-color:var(--ember);color:#1b0b03" data-i="rep_b"></button>
     <h3 data-i="now"></h3>
     <div class="grp"><div class="row"><select id="cm" onchange="refresh()" aria-label="month"></select><select id="cy" onchange="refresh()" aria-label="year"></select></div><div id="nr"></div></div>
+    <h3 data-i="otd_h"></h3>
+    <div class="grp"><div class="row"><input type="date" id="otd" min="2000-11-01" max="2025-12-31" value="2021-07-31" onchange="refresh()" style="width:auto" aria-label="date"> <small data-i="otd_n"></small></div><div id="otr"></div><div id="ch3" style="height:200px"></div></div>
     <h3 data-i="ch"></h3>
     <div class="half"><div id="ch1" style="height:260px"></div><div id="ch2" style="height:260px"></div></div><small id="top5"></small>
   </section>
@@ -316,10 +340,23 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
     <div class="vtw"><table class="vt" id="vt"></table></div>
     <small id="vt_foot"></small>
     <ul id="vt_notes"></ul>
+    <h4 data-i="ov_h"></h4><p data-i="ov_intro"></p>
+    <div id="ov" role="img" style="height:290px"></div>
+    <p id="ov_cap" class="cap"></p>
+    <h4 data-i="alt_h"></h4><p data-i="alt_intro"></p>
+    <div class="vtw"><table class="vt" id="alt"></table></div>
+    <div class="note" id="alt_notes"></div>
+    <div id="gs" role="img" style="height:260px"></div>
+    <p id="gs_cap" class="cap"></p>
+    <h4 data-i="fac_h"></h4>
+    <div id="fc" role="img" style="height:290px"></div>
+    <p id="fc_cap" class="cap"></p>
     <h4 id="rc_hd" data-i="rc_h"></h4>
     <div id="rc" role="img" style="height:310px"></div>
     <p id="rc_cap" class="cap"></p>
+    <div class="note" id="drf"></div>
     <details class="vals"><summary data-i="rc_tab"></summary><div class="vtw"><table class="vt" id="rc_tbl"></table></div></details>
+    <h4 data-i="cont_h"></h4><div data-i="cont"></div>
     </div><p id="ref"></p><div data-i="mt"></div>
     <div class="val-imgs">
       <div><small data-i="f1"></small><img src="fig1_v2_before_after.png" alt="Before vs After Harmonization" loading="lazy"></div>
@@ -335,6 +372,7 @@ body.maxed #side,body.maxed #cald,body.maxed #stat,body.maxed #hint{opacity:0!im
     <div class="dlb">
       <button onclick="dlRows()"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d1"></span></button>
       <button onclick="dlSum()"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d2"></span></button>
+      <button onclick="report()"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d5"></span></button>
       <button onclick="Plotly.downloadImage('ch1',{format:'png',width:900,height:420,filename:'seasonal_cycle'})"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d3"></span></button>
       <button onclick="Plotly.downloadImage('ch2',{format:'png',width:900,height:420,filename:'yearly_totals'})"><svg class="ic"><use href="#i-dl"/></svg><span data-i="d4"></span></button>
     </div>
@@ -453,13 +491,40 @@ rc_lb:['2019–2025 (test years in ①)','2019–2025 (① test yılları)'],
 rc_y:['VIIRS detections per MODIS detection','MODIS tespiti başına VIIRS tespiti'],
 rc_mean:['mean','ortalama'],rc_yr:['Year','Yıl'],
 rc_c1:['Average yearly ratio: <b>{a}</b> in 2012–2018 vs. <b>{b}</b> in 2019–2025 ({d}). Single years vary a lot (2012–2018: {ar}; 2019–2025: {br}).','Yıllık oranın ortalaması: 2012–2018\'de <b>{a}</b>, 2019–2025\'te <b>{b}</b> ({d}). Tek tek yıllar arasında fark büyüktür (2012–2018: {ar}; 2019–2025: {br}).'],
-rc_c2:[' <b>Why the bias is positive:</b> factors learned from 2012–2018 assume the higher ratio. In 2019–2025 one MODIS detection comes with fewer VIIRS detections than before, so the prediction made from MODIS ends up higher than the real VIIRS (bias {bt} with a single factor, {bm} with monthly factors, in ①). <i>Why the ratio changed was not investigated here.</i>',' <b>Bias neden pozitif:</b> 2012–2018\'den öğrenilen faktörler daha yüksek oranı varsayar. 2019–2025\'te bir MODIS tespitine düşen VIIRS tespiti öncekinden azdır; bu yüzden MODIS\'ten yapılan tahmin gerçek VIIRS\'ten yüksek çıkar (①\'de tek faktörle {bt}, aylık faktörle {bm}). <i>Oranın neden değiştiği burada araştırılmadı.</i>'],
+rc_c2:[' <b>Why the bias is positive:</b> factors learned from 2012–2018 assume the higher ratio. In 2019–2025 one MODIS detection comes with fewer VIIRS detections than before, so the prediction made from MODIS ends up higher than the real VIIRS (bias {bt} with a single factor, {bm} with monthly factors, in ①). We tested <i>why</i> the ratio changed; the result is in the box below.',' <b>Bias neden pozitif:</b> 2012–2018\'den öğrenilen faktörler daha yüksek oranı varsayar. 2019–2025\'te bir MODIS tespitine düşen VIIRS tespiti öncekinden azdır; bu yüzden MODIS\'ten yapılan tahmin gerçek VIIRS\'ten yüksek çıkar (①\'de tek faktörle {bt}, aylık faktörle {bm}). Oranın <i>neden</i> değiştiğini test ettik; sonuç aşağıdaki kutuda.'],
 rc_tab:['Show the yearly values as a table','Yıllık değerleri tablo olarak göster'],
 sc1:['Value scaled from MODIS. Typical validation error for the region\'s monthly total: ~{n}%','MODIS\'ten ölçeklenmiş değer. Bölgenin aylık toplamı için doğrulamada tipik hata ~%{n}'],
 sc2:['For a small area the error is higher (in our test on 1° squares it was more than twice as large; see README, Known limitations). A single week or day was not measured.','Küçük bir alanda hata daha yüksektir (1° karelerde yaptığımız testte iki kattan fazlaydı; bkz. README, Known limitations). Tek bir hafta veya gün ölçülmedi.'],
 sc2a:['That error was measured for the whole region (Türkiye and surroundings), not for your selected area, where it may be higher.','Bu hata seçtiğiniz alan için değil, tüm bölge (Türkiye ve çevresi) için ölçüldü; seçtiğiniz alanda daha yüksek olabilir.'],
 sc0:['2000–02: Terra only until 3 July 2002, so these values use their own Terra-only factors (held-out error about 25%, tested on 2019–2025). The real error for these years could not be measured.','2000–02: 3 Temmuz 2002\'ye kadar yalnızca Terra; bu değerlerde yalnız-Terra faktörleri kullanıldı (2019–2025 testinde hata yaklaşık %25). Bu yıllar için gerçek hata ölçülemedi.'],
 sc1b:['Value scaled from MODIS.','MODIS\'ten ölçeklenmiş değer.'],
+demo:['▶ Demo','▶ Demo'],t_close:['Close','Kapat'],t_back:['Back','Geri'],t_next:['Next','İleri'],t_done:['Finish','Bitir'],
+tour1:['1/4 · The problem','1/4 · Sorun','MODIS (1 km pixels, since 2000) sees about <b>3.6× fewer</b> fires than VIIRS (375 m, since 2012). MODIS is reaching the end of its mission; without a bridge, the 2000–2011 record cannot be compared with today. The table shows how well our MODIS→VIIRS scaling predicts VIIRS in years it never saw.','MODIS (1 km piksel, 2000\'den beri) VIIRS\'e (375 m, 2012\'den beri) göre yaklaşık <b>3,6 kat daha az</b> yangın görür. MODIS görev ömrünün sonuna geliyor; bir köprü olmazsa 2000–2011 kaydı bugünle karşılaştırılamaz. Tablo, MODIS→VIIRS ölçeklememizin hiç görmediği yıllarda VIIRS\'i ne kadar iyi tahmin ettiğini gösterir.'],
+tour2:['2/4 · Pick an area and a week','2/4 · Alan ve hafta seç','Case study: the <b>July–August 2021 megafires</b> (Manavgat, Marmaris, Milas). The calendar row 2021 lights up in weeks 30–31; the map shows only that week\'s hotspots over NASA\'s true-colour MODIS image of the same week.','Vaka analizi: <b>Temmuz–Ağustos 2021 megayangınları</b> (Manavgat, Marmaris, Milas). Takvimde 2021 satırı 30–31. haftalarda parlıyor; harita yalnızca o haftanın sıcak noktalarını aynı haftanın NASA gerçek renkli MODIS görüntüsü üzerinde gösterir.'],
+tour3:['3/4 · Is this unusual?','3/4 · Bu olağandışı mı?','<b>This month vs. history</b> answers it in one sentence (percent of the median of all other years), <b>On this day</b> compares the same dates (±3 days) across 25 years, and the <b>trend</b> tile tests whether activity is rising (Theil–Sen + Mann–Kendall).','<b>Bu ay ve tarihsel medyan</b> bunu tek cümleyle yanıtlar (diğer tüm yılların medyanının yüzdesi), <b>Tarihte bu gün</b> aynı tarihleri (±3 gün) 25 yıl boyunca karşılaştırır, <b>trend</b> kutusu aktivitenin artıp artmadığını test eder (Theil–Sen + Mann–Kendall).'],
+tour4:['4/4 · Take it to the field','4/4 · Sahaya götür','The <b>Unusual</b> list flags weeks to review; the <b>one-page report</b> button prints everything for a briefing. The method works for any region: load NASA FIRMS CSV files under <b>Layers</b>.','<b>Olağandışı</b> listesi incelenecek haftaları işaretler; <b>tek sayfalık rapor</b> düğmesi her şeyi brifing için yazdırır. Yöntem her bölgede çalışır: <b>Katmanlar</b> altından NASA FIRMS CSV dosyaları yükleyin.'],
+mm_h:['Map shows','Harita gösterimi'],mm_sum:['Hotspot total','Sıcak nokta toplamı'],mm_freq:['Fire frequency (years)','Yangın sıklığı (yıl)'],
+mm_n:['Fire frequency = in how many of the selected years a cell had at least one hotspot. Useful to see where fire comes back every year. (When a single week or month is selected, the map shows totals.)','Yangın sıklığı = seçili yılların kaçında bir hücrede en az bir sıcak nokta görüldüğü. Yangının her yıl geri geldiği yerleri gösterir. (Tek bir hafta veya ay seçiliyken harita toplamı gösterir.)'],
+own_h:['Another region (your own FIRMS files)','Başka bölge (kendi FIRMS dosyalarınız)'],
+own_p:['Download NASA FIRMS archive CSVs for any box (MODIS <code>MODIS_SP</code> and VIIRS <code>VIIRS_SNPP_SP</code>; select both files together). The app grids them to 0.25° with the same filters (type 0, MODIS confidence ≥ 30, VIIRS not low), learns its own monthly factors from that region\'s 2012+ overlap and builds the same calendar. Everything stays in your browser. The validation table and figures below describe the bundled Türkiye dataset only.','Herhangi bir kutu için NASA FIRMS arşiv CSV\'lerini indirin (MODIS <code>MODIS_SP</code> ve VIIRS <code>VIIRS_SNPP_SP</code>; iki dosyayı birlikte seçin). Uygulama onları aynı filtrelerle (type 0, MODIS güveni ≥ 30, VIIRS düşük değil) 0,25° ızgaraya çevirir, o bölgenin 2012+ örtüşmesinden kendi aylık faktörlerini öğrenir ve aynı takvimi kurar. Her şey tarayıcınızda kalır. Aşağıdaki doğrulama tablosu ve şekiller yalnızca paketteki Türkiye verisini anlatır.'],
+k6:['Trend of yearly totals (from 2003)','Yıllık toplam trendi (2003\'ten)'],
+rep_b:['🖨 One-page report for this area','🖨 Bu alan için tek sayfalık rapor'],d5:['One-page area report (print / save as PDF)','Tek sayfalık alan raporu (yazdır / PDF kaydet)'],
+otd_h:['On this day (±3 days, every year)','Tarihte bu gün (±3 gün, her yıl)'],otd_n:['pick a date; the same window is counted in every year','bir tarih seçin; aynı pencere her yılda sayılır'],
+ov_h:['Overlap check for the selected area: scaled MODIS vs. real VIIRS, 2012–2025','Seçili alan için örtüşme kontrolü: ölçeklenmiş MODIS ve gerçek VIIRS, 2012–2025'],
+ov_intro:['If the scaling works, the two lines should lie on top of each other — the sensor should no longer matter. This chart is recomputed for whatever area you draw.','Ölçekleme çalışıyorsa iki çizgi üst üste binmelidir; yani sensör artık fark etmemelidir. Bu grafik çizdiğiniz her alan için yeniden hesaplanır.'],
+alt_h:['Other harmonization methods we tested','Denediğimiz diğer uyumlaştırma yöntemleri'],
+alt_intro:['The same three held-out schemes, applied to eight methods: from simpler (single factor) to more flexible (power law, regression, quantile mapping), spatial (sub-region and per-square factors) and machine learning (gradient boosting). <b>Region</b> = monthly totals of the whole box, <b>1° square</b> = monthly totals of ~110 × 85 km squares (closer to a drawn area). Read from <code>data/method_comparison_v2.csv</code> (<code>tools/compare_methods.py</code>).','Aynı üç dışarıda-tutma şeması sekiz yönteme uygulandı: daha basitinden (tek faktör) daha esneğine (üs yasası, regresyon, kantil eşleme), uzamsal yöntemlere (alt bölge ve kare bazlı faktörler) ve makine öğrenmesine (gradient boosting). <b>Bölge</b> = tüm kutunun aylık toplamları, <b>1° kare</b> = ~110 × 85 km karelerin aylık toplamları (çizilen alana daha yakın). <code>data/method_comparison_v2.csv</code> dosyasından okunur (<code>tools/compare_methods.py</code>).'],
+am_single:['Single factor','Tek faktör'],am_monthly:['Monthly factor (used)','Aylık faktör (kullanılan)'],am_power_law:['Power law, regional totals','Üs yasası, bölge toplamları'],am_linear:['Linear regression','Doğrusal regresyon'],am_quantile_map:['Quantile mapping','Kantil eşleme'],am_subregion:['Monthly factor per sub-region (4)','Alt bölge başına aylık faktör (4)'],am_square_shrunk:['Monthly × per-square correction (shrunk)','Aylık × kare düzeltmesi (büzülmüş)'],am_gbm_poisson:['Gradient boosting (ML, Poisson)','Gradient boosting (ML, Poisson)'],am_us:['Power law per cell (team Colab experiment)','Hücre bazlı üs yasası (ekip Colab denemesi)'],
+alt_lv:['Region','Bölge'],alt_sq:['1° square','1° kare'],
+alt_n:['<b>Why we kept the monthly factor:</b><ul><li><b>Gradient boosting</b> is best on the whole region (WAPE {g1} / {g2} / {g3} vs. {m1} / {m2} / {m3}), but its bias changes sign between schemes ({gb1} … {gb3}) and in the forward test ① it is <i>worse</i> for 1° squares ({gs1} vs. {ms1}) — and small areas are what users draw. It also cannot be trained for the Terra-only years (the grid does not separate Terra and Aqua), and a non-linear monthly model does not add up from daily 0.25° cells, which the calendar needs. We use it as a <b>sensitivity check</b> instead (chart below).</li><li><b>Power law, regression and quantile mapping</b> fitted on regional totals are worse ({pl} / {li} / {qm} in ①) and non-additive: the value of an area would not equal the sum of its cells.</li><li><b>Spatial factors</b> (sub-regions, per-square correction) do not beat the monthly factor in the forward test ① ({sr} / {ss}): the spatial pattern of the ratio is not stable enough over time to be learned.</li><li><b>Not testable with the 0.25° grid:</b> day/night and fire-radiative-power classes need the raw FIRMS records (<code>daynight</code>, <code>frp</code>), which the grid does not keep.</li></ul>','<b>Neden aylık faktörde kaldık:</b><ul><li><b>Gradient boosting</b> tüm bölgede en iyisidir (WAPE {g1} / {g2} / {g3}, aylık faktörde {m1} / {m2} / {m3}); ancak biası şemalar arasında işaret değiştirir ({gb1} … {gb3}) ve ileriye dönük test ①\'de 1° karelerde <i>daha kötüdür</i> ({gs1}, aylıkta {ms1}) — kullanıcıların çizdiği de küçük alanlardır. Ayrıca yalnız-Terra yılları için eğitilemez (ızgara Terra ve Aqua\'yı ayırmaz) ve doğrusal olmayan aylık bir model, takvimin ihtiyaç duyduğu günlük 0,25° hücrelerden toplanarak aynı sonucu vermez. Bunun yerine onu bir <b>duyarlılık kontrolü</b> olarak kullanıyoruz (aşağıdaki grafik).</li><li>Bölge toplamlarına uydurulan <b>üs yasası, regresyon ve kantil eşleme</b> daha kötüdür (①\'de {pl} / {li} / {qm}) ve toplanabilir değildir: bir alanın değeri hücrelerinin toplamına eşit olmaz.</li><li><b>Uzamsal faktörler</b> (alt bölgeler, kare düzeltmesi) ileriye dönük test ①\'de aylık faktörü geçemez ({sr} / {ss}): oranın uzaydaki deseni zaman içinde öğrenilecek kadar kararlı değildir.</li><li><b>0,25° ızgarayla test edilemeyenler:</b> gece/gündüz ve yangın ışınım gücü (FRP) sınıfları ham FIRMS kayıtlarını (<code>daynight</code>, <code>frp</code>) gerektirir; ızgara bunları tutmaz.</li></ul>'],
+gs_t:['Sensitivity check: yearly totals 2003–2011, monthly factor vs. gradient boosting','Duyarlılık kontrolü: 2003–2011 yıllık toplamları, aylık faktör ve gradient boosting'],
+gs_c:['Gradient boosting trained on all of 2012–2025 and applied to the MODIS years gives yearly totals {lo} to {hi} different from the product (largest in the big fire years {big}); the two series correlate at <b>r = {r}</b> and rank the years almost identically (Spearman ρ = {rho}). Which years were high or low does not depend on the choice of method; only the size of the biggest peaks does. Read from <code>data/gbm_sensitivity_v2.csv</code> (<code>tools/gbm_sensitivity.py</code>).','2012–2025\'in tamamında eğitilip MODIS yıllarına uygulanan gradient boosting, yıllık toplamları üründen {lo} ile {hi} arasında farklı verir (en çok büyük yangın yıllarında: {big}); iki seri <b>r = {r}</b> ile ilişkilidir ve yılları neredeyse aynı sıralar (Spearman ρ = {rho}). Hangi yılların yüksek ya da düşük olduğu yöntem seçimine bağlı değildir; yalnızca en büyük tepelerin büyüklüğü değişir. <code>data/gbm_sensitivity_v2.csv</code> dosyasından okunur (<code>tools/gbm_sensitivity.py</code>).'],
+fac_h:['The factors themselves: Terra + Aqua (from 4 July 2002) vs. Terra only (before)','Faktörlerin kendisi: Terra + Aqua (4 Temmuz 2002\'den itibaren) ve yalnız Terra (öncesi)'],
+fac_c:['Terra-only factors are on average <b>{avg}×</b> the Terra + Aqua ones, because one satellite sees about half as many fires. They are noisy in winter (Jan {j}, Dec {d}) because few fires burn then (grey line: MODIS detections behind each factor, 2012–2025). The effect on the record is small: in 2001, Nov–Mar contribute only <b>{wsh}</b> of the year\'s {tot} hotspots, while Aug–Oct contribute <b>{ssh}</b> (raw Terra detections Sep {s9}, Oct {s10}, both higher than in 2003). The high 2001 total is therefore driven by the summer–autumn fire season, not by the winter factors; 2000–2002 are still marked ⚠ and excluded from the anomaly baseline (2003+).','Yalnız-Terra faktörleri ortalama Terra + Aqua faktörlerinin <b>{avg} katıdır</b>, çünkü tek uydu yaklaşık yarısı kadar yangın görür. Kışın gürültülüdür (Oca {j}, Ara {d}), çünkü o aylarda az yangın olur (gri çizgi: her faktörün arkasındaki MODIS tespit sayısı, 2012–2025). Kayda etkisi küçüktür: 2001\'de Kas–Mar ayları yılın {tot} sıcak noktasının yalnızca <b>{wsh}</b>\'ini oluştururken Ağu–Eki <b>{ssh}</b>\'ini oluşturur (ham Terra tespitleri Eyl {s9}, Eki {s10}; ikisi de 2003\'ten yüksek). Yani 2001\'in yüksek toplamı kış faktörlerinden değil yaz–sonbahar yangın sezonundan gelir; 2000–2002 yine de ⚠ ile işaretlidir ve anomali tabanının (2003+) dışındadır.'],
+fac_l1:['Terra + Aqua','Terra + Aqua'],fac_l2:['Terra only','Yalnız Terra'],fac_l3:['MODIS detections 2012–2025','MODIS tespitleri 2012–2025'],fac_y:['VIIRS per MODIS detection','MODIS tespiti başına VIIRS'],
+drf:['<b>Why did the ratio fall? What we tested</b> (<code>data/ratio_drift_v2.csv</code>, <code>tools/ratio_drift_check.py</code>; pooled ratio {pa} → {pb}, {dp}):<ul><li><b>Bigger fires?</b> Large fires saturate the 1 km MODIS pixel, so a year dominated by large fires has a lower ratio. But the share of VIIRS detections coming from large fire cell-days (≥ 10 VIIRS detections in a 0.25° cell in one day) did <i>not</i> rise ({sa} → {sb}), and the ratio fell mostly for <i>small</i> fires ({ra} → {rb}, {dr}; large fires {la} → {lb}, {dl}). So fire size is not the main cause — except in <b>2021</b>, the megafire year (large-fire share {s21}, ratio {r21}).</li><li><b>Different season mix?</b> More fires in months with a low ratio would lower the yearly ratio. The month mix explains only {dm} of the {dp} change.</li><li><b>Orbit drift (not testable here).</b> Terra and Aqua stopped their orbit-maintenance manoeuvres around 2020–2022, and their local overpass times have been drifting since; this changes how many fires MODIS sees. Testing it needs Terra and Aqua kept apart, which the grid does not do.</li></ul>So the drop is real, small-fire driven and only partly explained. It is why the forward test ① has a positive bias; the schemes that include recent years (②, ③) have a bias within ±2%.','<b>Oran neden düştü? Test ettiklerimiz</b> (<code>data/ratio_drift_v2.csv</code>, <code>tools/ratio_drift_check.py</code>; birleşik oran {pa} → {pb}, {dp}):<ul><li><b>Daha büyük yangınlar mı?</b> Büyük yangınlar 1 km\'lik MODIS pikselini doyurur, bu yüzden büyük yangınların baskın olduğu bir yılda oran düşer. Ancak VIIRS tespitlerinin büyük yangın hücre-günlerinden (bir günde 0,25° hücrede ≥ 10 VIIRS tespiti) gelen payı <i>artmadı</i> ({sa} → {sb}) ve oran en çok <i>küçük</i> yangınlarda düştü ({ra} → {rb}, {dr}; büyük yangınlarda {la} → {lb}, {dl}). Yani ana neden yangın büyüklüğü değil — megayangın yılı <b>2021</b> hariç (büyük yangın payı {s21}, oran {r21}).</li><li><b>Farklı mevsim karışımı mı?</b> Oranın düşük olduğu aylarda daha çok yangın olması yıllık oranı düşürür. Ay karışımı {dp} değişimin yalnızca {dm}\'sini açıklar.</li><li><b>Yörünge kayması (burada test edilemez).</b> Terra ve Aqua 2020–2022 civarında yörünge düzeltme manevralarını bıraktı ve yerel geçiş saatleri o zamandan beri kayıyor; bu, MODIS\'in kaç yangın gördüğünü değiştirir. Test etmek için Terra ve Aqua\'nın ayrı tutulması gerekir; ızgara bunu yapmaz.</li></ul>Yani düşüş gerçektir, küçük yangınlardan kaynaklanır ve yalnızca kısmen açıklanır. İleriye dönük test ①\'deki pozitif biasın nedeni budur; yakın yılları da içeren şemalarda (②, ③) bias ±%2 içindedir.'],
+cont_h:['What happens when MODIS is switched off?','MODIS kapatılınca ne olacak?'],
+cont:['<p>Terra and Aqua are near the end of their missions. Once the 2000–2011 MODIS record has been put on the VIIRS scale (this project), the calendar no longer needs MODIS: from 2012 it is pure VIIRS, so it continues with S-NPP and with the identical VIIRS instruments on NOAA-20 and NOAA-21 (also in FIRMS). Only the factors need MODIS and VIIRS flying together, and they are already learned from 14 overlap years. The same pipeline works for any region (see <b>Layers → Another region</b>).</p>','<p>Terra ve Aqua görev ömürlerinin sonuna yaklaştı. 2000–2011 MODIS kaydı bir kez VIIRS ölçeğine taşındıktan sonra (bu proje) takvimin MODIS\'e ihtiyacı kalmaz: 2012\'den itibaren yalnızca VIIRS\'tir; S-NPP ve NOAA-20, NOAA-21 üzerindeki özdeş VIIRS cihazlarıyla (FIRMS\'te mevcut) devam eder. Yalnızca faktörlerin öğrenilmesi MODIS ve VIIRS\'in birlikte uçmasını gerektirir ve bunlar 14 örtüşme yılından zaten öğrenildi. Aynı yöntem her bölgede çalışır (bkz. <b>Katmanlar → Başka bölge</b>).</p>'],
 f1:['Harmonization: Before vs. After (2000–2025)','Uyumlaştırma: Öncesi ve Sonrası (2000–2025)'],
 f2:['Calendar-Month Scaling Factors (VIIRS / MODIS)','Aylık Ölçekleme Çarpanları (VIIRS / MODIS)'],
 f3:['Case Study: July–August 2021 Manavgat Megafire','Vaka Analizi: Temmuz–Ağustos 2021 Manavgat Yangını'],
@@ -469,6 +534,7 @@ let LANG='en',METH='c',REF=null,AOI=null,AOIL='',SHAPE=null,SENS='intensity',VIE
 const l=(a,b)=>LANG=='tr'?b:a,t=k=>T[k][LANG=='tr'?1:0],SK=['intensity','raw_modis','raw_viirs'];
 let D,K,Y,W,M,LA,LO,ST,NST=0,V={};
 let VAL=null,YR=null,VERR=0,VSIG='';
+let FT={},ALT=null,GS=null,DR=null,MAPM='sum',OWN=false,TSTEP=-1,DN,FR1={},MC12=new Float64Array(12),FSTAT=null,OVS=null;
 const RP=[[66,10,104],[147,38,103],[221,81,58],[252,165,10],[252,255,164]];
 // Colour scale (calendar and map): log1p between the 5th and the 98th percentile of the non-zero values in view
 // (<30 non-zero values: 0 .. maximum). Values below/above the ends take the end colours, so one extreme week/cell cannot flatten the rest.
@@ -476,16 +542,18 @@ const labv=v=>v>=1e4?Math.round(v/1e3)+'k':v>=1e3?(v/1e3).toFixed(1).replace(/\.
 function mkScale(vals){const p=vals.filter(x=>x>0).sort((x,y)=>x-y),n=p.length;if(!n)return{lo:0,hi:0,max:0};
  const q=f=>{const i=(n-1)*f,j=Math.floor(i);return p[j]+(p[Math.min(j+1,n-1)]-p[j])*(i-j)};
  let lo=0,hi=p[n-1];if(n>=30){lo=q(.05);hi=q(.98)}if(!(hi>lo)){lo=0;hi=p[n-1]}return{lo,hi,max:p[n-1]}}
-const rr=(v,S)=>Math.min(Math.max((Math.log1p(v)-Math.log1p(S.lo))/(Math.log1p(S.hi)-Math.log1p(S.lo)),0),1);
+const rr=(v,S)=>Math.min(Math.max(S.lin?(v-S.lo)/((S.hi-S.lo)||1):(Math.log1p(v)-Math.log1p(S.lo))/(Math.log1p(S.hi)-Math.log1p(S.lo)),0),1);
 function ticks(S){if(!(S.hi>0))return'';const sp=(v,c)=>`<span class="${c}" style="left:${(100*rr(v,S)).toFixed(1)}%">${c=='e0'?'≤':c=='e1'?'≥':''}${labv(v)}</span>`;
- let o=S.lo>0?sp(S.lo,'e0'):'';for(let v=1;v<S.hi;v*=10){const q=100*rr(v,S);if(q>24&&q<70)o+=sp(v,'')}return o+sp(S.hi,'e1')}
+ if(S.lin)return(sp(S.lo,'e0')+(S.hi-S.lo>=2?sp(Math.round((S.lo+S.hi)/2),''):'')+sp(S.hi,'e1')).replace(/[≤≥]/g,'');let o=S.lo>0?sp(S.lo,'e0'):'';for(let v=1;v<S.hi;v*=10){const q=100*rr(v,S);if(q>24&&q<70)o+=sp(v,'')}return o+sp(S.hi,'e1')}
 const lgTip=S=>l(`Colour = hotspots per cell on a log scale, from the 5th percentile (≤${labv(S.lo)}) to the 98th percentile (≥${labv(S.hi)}) of the non-zero values in view; the highest value is ${labv(S.max)}. Relative to the current selection, so not comparable between views.`,`Renk = hücre başına sıcak nokta sayısı (log ölçek); görünümdeki sıfırdan farklı değerlerin %5'inden (≤${labv(S.lo)}) %98'ine (≥${labv(S.hi)}) kadar. En yüksek değer ${labv(S.max)}. Seçime göre göreli olduğundan görünümler arasında karşılaştırılamaz.`);
 function updLegend(S){const e=document.getElementById('lt'),g=document.getElementById('lgd');if(e)e.innerHTML=ticks(S);if(g)g.title=S.hi>0?lgTip(S):''}
 const MLG=L.control({position:'bottomleft'});
 MLG.onAdd=()=>{const d=L.DomUtil.create('div','mlg');d.hidden=true;L.DomEvent.disableClickPropagation(d);return d};
 function updMapLegend(S,cap){const d=MLG.getContainer();if(!d)return;if(!(S.hi>0)){d.hidden=true;return}d.hidden=false;
- d.innerHTML=`<small>${cap}</small><div class="lgw"><div class="lg"></div><div class="lt">${ticks(S)}</div></div>`;d.title=lgTip(S)}
-function cc(v,S){if(!(v>0)||!(S.hi>0))return['#211c19','#6f665e'];const r=rr(v,S)*4,i=Math.min(Math.floor(r),3),f=r-i,c=RP[i].map((x,j)=>Math.round(x+(RP[i+1][j]-x)*f));return[`rgb(${c})`,r>2.5?'#111':'#fff']}
+ d.innerHTML=`<small>${cap}</small><div class="lgw"><div class="lg"></div><div class="lt">${ticks(S)}</div></div>`;d.title=S.lin?'':lgTip(S)}
+// text colour on a cell: whichever of near-black / white has the higher WCAG contrast with the cell colour
+const lum=c=>c.map(x=>{x/=255;return x<=.03928?x/12.92:((x+.055)/1.055)**2.4}).reduce((s,x,j)=>s+x*[.2126,.7152,.0722][j],0);
+function cc(v,S){if(!(v>0)||!(S.hi>0))return['#211c19','#6f665e'];const r=rr(v,S)*4,i=Math.min(Math.floor(r),3),f=r-i,c=RP[i].map((x,j)=>Math.round(x+(RP[i+1][j]-x)*f));return[`rgb(${c})`,lum(c)>.19?'#111':'#fff']}
 const med=a=>{const s=[...a].sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):0};
 const q=(a,p)=>{const s=[...a].sort((x,y)=>x-y);return s.length?s[Math.min(s.length-1,Math.floor(p*s.length))]:0};
 const dt=(y,w,e)=>new Date(Date.UTC(y,0,1+7*w+(e?(w==51?Math.round((Date.UTC(y,11,31)-Date.UTC(y,0,1+7*w))/864e5):6):0))),fd=d=>d.getUTCDate()+' '+MN[LANG][d.getUTCMonth()];
@@ -575,7 +643,7 @@ function openFIRMS(){
 function shareView(){
  const p=new URLSearchParams();
  p.set('y0',$('y0').value);p.set('y1',$('y1').value);p.set('s',SENS);p.set('v',VIEW);p.set('m',METH);p.set('z',$('z').value);p.set('mi',$('mi2').value);
- if($('ns').checked)p.set('ns','1');
+ if($('ns').checked)p.set('ns','1');if(MAPM=='freq')p.set('mm','f');
  if(AOI){const[w,s,e,n]=aoiBounds(AOI);p.set('bbox',[s.toFixed(2),n.toFixed(2),w.toFixed(2),e.toFixed(2)].join(','))}
  const url=location.origin+location.pathname+'#'+p.toString();
  history.replaceState(null,'','#'+p.toString());
@@ -586,7 +654,7 @@ function copyApi(){
  $('apiC').textContent=l('✓ Copied!','✓ Kopyalandı!');setTimeout(()=>$('apiC').textContent=t('apiC'),1600)}
 function fillSel(){const c=$('pre').value||0;$('pre').innerHTML=PR.map((p,i)=>`<option value="${i}">${l(p[0],p[1])}</option>`).join('');$('pre').value=c;
  const m=$('cm').value||12;$('cm').innerHTML=MN[LANG].map((x,i)=>`<option value="${i+1}">${x}</option>`).join('');$('cm').value=m}
-function applyLang(){document.documentElement.lang=LANG;document.querySelectorAll('[data-i]').forEach(e=>e.innerHTML=t(e.dataset.i));$('lang').textContent=LANG=='en'?'TR':'EN';fillSel();refresh()}
+function applyLang(){document.documentElement.lang=LANG;document.querySelectorAll('[data-i]').forEach(e=>e.innerHTML=t(e.dataset.i));$('lang').textContent=LANG=='en'?'TR':'EN';fillSel();if(TSTEP>=0)tourText();refresh()}
 function setMeth(m){METH=m;$('z').value=m=='c'?2:3;refresh()}
 function toggleLang(){LANG=LANG=='en'?'tr':'en';applyLang()}
 function parseGridCSV(txt){
@@ -605,14 +673,20 @@ function parseGridCSV(txt){
   const out=['date,cell_id,lat,lon,intensity,raw_modis,raw_viirs'];
   agg.forEach(o=>{const y=+o.d.slice(0,4),mo=+o.d.slice(5,7),fac=F[mo]||3.5,int=y<2012?(o.m>0?o.m*fac:o.v):(o.v>0?o.v:o.m*fac);out.push(`${o.d},${o.cid},${o.la},${o.lo},${int.toFixed(2)},${o.m},${o.v}`)});
   return parseGridCSV(out.join('\n'))}
- N=ln.length-1;D=new Array(N);K=new Array(N);Y=new Uint16Array(N);W=new Uint8Array(N);M=new Uint8Array(N);LA=new Float32Array(N);LO=new Float32Array(N);ST=new Uint8Array(N);
+ N=ln.length-1;D=new Array(N);K=new Array(N);Y=new Uint16Array(N);W=new Uint8Array(N);M=new Uint8Array(N);LA=new Float32Array(N);LO=new Float32Array(N);ST=new Uint8Array(N);DN=new Int32Array(N);
  SK.forEach(k=>V[k]=new Float32Array(N));const cs=new Map();
  let sLa=90,nLa=-90,wLo=180,eLo=-180;
  for(let i=0;i<N;i++){const c=ln[i+1].split(','),s=c[0],y=+s.slice(0,4),mo=+s.slice(5,7),d=+s.slice(8,10),la=+c[2],lo=+c[3];D[i]=s;K[i]=c[1];Y[i]=y;M[i]=mo;
   if(la<sLa)sLa=la;if(la>nLa)nLa=la;if(lo<wLo)wLo=lo;if(lo>eLo)eLo=lo;
-  W[i]=Math.min(Math.floor(Math.round((Date.UTC(y,mo-1,d)-Date.UTC(y,0,1))/864e5)/7),51);LA[i]=la;LO[i]=lo;V.intensity[i]=+c[4];V.raw_modis[i]=+c[5];V.raw_viirs[i]=+c[6];
+  DN[i]=Date.UTC(y,mo-1,d)/864e5;W[i]=Math.min(Math.floor(Math.round((Date.UTC(y,mo-1,d)-Date.UTC(y,0,1))/864e5)/7),51);LA[i]=la;LO[i]=lo;V.intensity[i]=+c[4];V.raw_modis[i]=+c[5];V.raw_viirs[i]=+c[6];
   if(y>=2012){let o=cs.get(c[1]);if(!o)cs.set(c[1],o={d:0,y:0});o.d++;o.y|=1<<(y-2012)}}
  DB=[wLo-.125,sLa-.125,eLo+.125,nLa+.125];
+ // whole-region factors learned on 2012-2018 only (scheme 1), MODIS sample size per month, and the 2001 breakdown for the Method panel
+ {const m1=new Float64Array(12),v1=new Float64Array(12),f01=new Float64Array(12),r01=new Float64Array(13),r03=new Float64Array(13);MC12=new Float64Array(12);
+  for(let i=0;i<N;i++){const y=Y[i],m=M[i]-1;if(y>=2012){MC12[m]+=V.raw_modis[i];if(y<=2018){m1[m]+=V.raw_modis[i];v1[m]+=V.raw_viirs[i]}}
+   if(y==2001){f01[m]+=V.intensity[i];r01[m+1]+=V.raw_modis[i]}if(y==2003)r03[m+1]+=V.raw_modis[i]}
+  const pm=m1.reduce((a,b)=>a+b,0),pv=v1.reduce((a,b)=>a+b,0);FR1={};for(let m=0;m<12;m++)FR1[m+1]=m1[m]>0?v1[m]/m1[m]:(pm>0?pv/pm:0);
+  const tot=f01.reduce((a,b)=>a+b,0);FSTAT=tot>0?{tot,w:(f01[10]+f01[11]+f01[0]+f01[1]+f01[2])/tot,s:(f01[7]+f01[8]+f01[9])/tot,s9:r01[9],s10:r01[10],hi:r01[9]>r03[9]&&r01[10]>r03[10]}:null}
  const st=new Set();cs.forEach((o,k)=>{let n=0,b=o.y;while(b){n+=b&1;b>>=1}if(n>=12&&o.d>=150)st.add(k)});NST=st.size;for(let i=0;i<N;i++)ST[i]=st.has(K[i])?1:0;
  if(!$('y0').innerHTML){
   const ys=[...Array(26)].map((_,i)=>`<option>${2000+i}</option>`).join('');$('y0').innerHTML=ys;$('y1').innerHTML=ys;$('cy').innerHTML=ys;
@@ -626,8 +700,8 @@ function parseGridCSV(txt){
 function loadData(cb){
  showLoad();
  const csvFile='daily_grid_v2.csv',facFile='monthly_factors_v2.json';
- Promise.all([fetch(csvFile).then(r=>{if(!r.ok)throw new Error(csvFile);return r.text()}),fetch(facFile).then(r=>r.json())]).then(([txt,f])=>{
-  F=f;parseGridCSV(txt);if(cb)cb()
+ Promise.all([fetch(csvFile).then(r=>{if(!r.ok)throw new Error(csvFile);return r.text()}),fetch(facFile).then(r=>r.json()),fetch('monthly_factors_terra_v2.json').then(r=>r.json()).catch(()=>({}))]).then(([txt,f,ft])=>{
+  F=f;FT=ft;parseGridCSV(txt);if(cb)cb()
  }).catch(e=>{console.warn(e);
   $('load').classList.add('done');$('err').style.display='block';$('err').textContent=l('Could not load the data files. Open this folder through a web server (e.g. "python -m http.server") or host it on GitHub Pages.','Veri dosyaları yüklenemedi. Klasörü bir web sunucusuyla açın (ör. "python -m http.server") veya GitHub Pages\'te yayınlayın.')})}
 // ===== v6 interface: full-screen map, satellite layers, icon dock, side panel, calendar drawer =====
@@ -642,7 +716,7 @@ function setVars(){
  let h=0;if(CALS!='closed'&&!mx)h=CALS=='full'?innerHeight-(mob?132:96):Math.round(mob?Math.min(Math.max(innerHeight*.36,210),330):Math.min(Math.max(innerHeight*.38,250),350));
  $('cald').style.height=h+'px';r.setProperty('--side',side+'px');r.setProperty('--calh',(h?h+(mob?8:12):0)+'px')}
 function PAD(){const cs=getComputedStyle(document.documentElement),sd=parseInt(cs.getPropertyValue('--side'))||0,ch=parseInt(cs.getPropertyValue('--calh'))||0;
- return{paddingTopLeft:[MOB()?16:60,MOB()?64:88],paddingBottomRight:[sd+(MOB()?16:28),ch+(MOB()?70:86)]}}
+ const tb=$('tour')&&!$('tour').hidden?$('tour').offsetHeight+12:0;return{paddingTopLeft:[MOB()?16:60,(MOB()?64:88)+tb],paddingBottomRight:[sd+(MOB()?16:28),ch+(MOB()?70:86)]}}
 function openPanel(id){
  if(id&&PANEL==id)id=null;PANEL=id;const s=$('side');if(id&&!$('hint').hidden)hideHint();
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id=='p-'+id));
@@ -721,7 +795,7 @@ loadData(()=>{
   if(p.get('s')&&SK.includes(p.get('s')))SENS=p.get('s');
   if(p.get('v'))VIEW=p.get('v');if(p.get('m'))METH=p.get('m');
   if(p.get('z'))$('z').value=p.get('z');if(p.get('mi'))$('mi2').value=p.get('mi');
-  if(p.get('ns')=='1')$('ns').checked=true;
+  if(p.get('ns')=='1')$('ns').checked=true;if(p.get('mm')=='f')MAPM='freq';
   if(p.get('bbox')){const b=p.get('bbox').split(',').map(Number);if(b.length==4&&!b.some(isNaN))rect(b[0],b[1],b[2],b[3]);else refresh()}else refresh()}});
 function stats(wk,B,rb,zt,mi){
  const z=[...Array(26)].map(()=>new Float64Array(52)),clim=new Float64Array(52);
@@ -735,10 +809,13 @@ function refresh(){
  const ns=$('ns').checked,zt=+$('z').value,mi=+$('mi2').value,v=V[SENS];$('zv').textContent=zt.toFixed(1);$('mv').textContent=mi;
  if(FOCUS&&(FOCUS.y<y0||FOCUS.y>y1))FOCUS=null;
  const wk=[...Array(26)].map(()=>new Float64Array(52)),mo=[...Array(26)].map(()=>new Float64Array(12));let cnt=0;
+ const OM=new Float64Array(168),OVV=new Float64Array(168),od=($('otd').value||'2021-07-31').split('-').map(Number),otn=[...Array(28)].map((_,j)=>Date.UTC(1999+j,od[1]-1,od[2])/864e5),otd=new Float64Array(26);
  for(let i=0;i<N;i++){if(!SEL[i]||(ns&&ST[i]))continue;const y=Y[i],m=M[i]-1;if(y<2000||y>2025)continue;
-  if(SENS=='raw_viirs'&&y<2012)continue;const x=v[i];if(x<=0)continue;wk[y-2000][W[i]]+=x;mo[y-2000][m]+=x;if(y>=y0&&y<=y1)cnt++}
+  if(y>=2012){OM[(y-2012)*12+m]+=V.raw_modis[i];OVV[(y-2012)*12+m]+=V.raw_viirs[i]}
+  if(SENS=='raw_viirs'&&y<2012)continue;
+  if(v[i]>0)for(let yy=y-1;yy<=y+1;yy++)if(yy>=2000&&yy<=2025&&Math.abs(DN[i]-otn[yy-1999])<=3)otd[yy-2000]+=v[i];const x=v[i];if(x<=0)continue;wk[y-2000][W[i]]+=x;mo[y-2000][m]+=x;if(y>=y0&&y<=y1)cnt++}
  const B=[];for(let y=Math.max(y0,2003);y<=y1;y++)B.push(y);if(SENS=='raw_viirs')while(B.length&&B[0]<2012)B.shift();
- const{z,crit,core,an}=stats(wk,B,METH=='r',zt,mi);
+ const{z,crit,core,an}=stats(wk,B,METH=='r',zt,mi);LASTAN=an;
  const mm=[...Array(12)].map((_,m)=>B.map(y=>mo[y-2000][m])),mdM=mm.map(med);
  CUR={mo,mdM,y0,y1};
  const km2=calcAreaKm2(AOI),dens=km2>0?(cnt/(km2/1000)).toFixed(1):'0';
@@ -748,7 +825,7 @@ function refresh(){
  $('k2s').textContent=`${dens} / 1,000 km²`;
  const ssn=a=>a.length?`${fd(dt(2021,a[0]))} – ${fd(dt(2021,a[a.length-1],1))} · ${l('wk','hf')} ${rng(a)}`:'–';$('k3').textContent=ssn(crit);$('k5').textContent=ssn(core);$('k4').textContent=B.length>=5?an.length:'–';
  $('nst').textContent=`(${NST} ${l('cells','hücre')})`;$('sb').innerHTML=SK.map((k,i)=>`<button class="${k==SENS?'on':''}" onclick="SENS='${k}';refresh()">${t('se'+i)}</button>`).join('');
- $('vw').className=VIEW=='w'?'on':'';$('vm').className=VIEW=='m'?'on':'';$('mc').className=METH=='c'?'on':'';$('mr').className=METH=='r'?'on':'';
+ $('mm_s').className=MAPM=='sum'?'on':'';$('mm_f').className=MAPM=='freq'?'on':'';$('vw').className=VIEW=='w'?'on':'';$('vm').className=VIEW=='m'?'on':'';$('mc').className=METH=='c'?'on':'';$('mr').className=METH=='r'?'on':'';
  // now vs history
  const cy=+$('cy').value,cm=+$('cm').value,tv=mo[cy-2000][cm-1],ar=[];for(let y=2003;y<=2025;y++)if(y!=cy&&!(SENS=='raw_viirs'&&y<2012))ar.push(mo[y-2000][cm-1]);
  const md=med(ar),r=md>0?tv/md:null,rk=ar.length?Math.round(100*ar.filter(x=>x<=tv).length/ar.length):0;
@@ -768,7 +845,24 @@ function refresh(){
  Plotly.react('ch1',[{x:X,y:mm.map(a=>q(a,.9)),mode:'lines',line:{width:0},showlegend:false,hoverinfo:'skip'},{x:X,y:mm.map(a=>q(a,.1)),fill:'tonexty',fillcolor:'rgba(147,197,253,.28)',line:{width:0},name:'P10–P90'},{x:X,y:mdM,name:l('median','medyan'),line:{color:'#93c5fd',width:2}},{x:X,y:Array.from(mo[cy-2000]),name:String(cy),line:{color:'#fbbf24',width:3,dash:'dot'}}],{...lay,title:{text:l('Seasonal cycle (monthly hotspots)','Mevsimsel döngü (aylık sıcak nokta)'),font:{size:12}}},cf);
  const yr=[],tot=[];for(let y=y0;y<=y1;y++){yr.push(y);tot.push(wk[y-2000].reduce((a,b)=>a+b,0))}
  const mt=med(yr.map((y,i)=>y>=2003?tot[i]:null).filter(x=>x!=null));
- Plotly.react('ch2',[{x:yr,y:tot,type:'bar',name:l('Hotspots','Sıcak nokta'),marker:{color:yr.map(y=>y<2003?'#64748b':y<2012&&SENS=='intensity'?'#a78bfa':'#2dd4bf')}},{x:yr,y:yr.map(()=>mt),mode:'lines',name:l('median','medyan'),line:{color:'#fbbf24',dash:'dash'}}],{...lay,title:{text:l('Yearly totals (purple = MODIS-scaled)','Yıllık toplam (mor = MODIS\'ten ölçekli)'),font:{size:12}}},cf);
+ // trend of yearly totals: Theil-Sen slope + Mann-Kendall test, two-satellite years only (2003+; 2012+ for raw VIIRS)
+ const tY=[],tV=[];yr.forEach((y,i)=>{if(y>=(SENS=='raw_viirs'?2012:2003)){tY.push(y);tV.push(tot[i])}});const TR=trend(tY,tV);
+ const ch2d=[{x:yr,y:tot,type:'bar',name:l('Hotspots','Sıcak nokta'),marker:{color:yr.map(y=>y<2003?'#64748b':y<2012&&SENS=='intensity'?'#a78bfa':'#2dd4bf')}},{x:yr,y:yr.map(()=>mt),mode:'lines',name:l('median','medyan'),line:{color:'#fbbf24',dash:'dash'}}];
+ if(TR)ch2d.push({x:[tY[0],tY[tY.length-1]],y:[TR.b+TR.s*tY[0],TR.b+TR.s*tY[tY.length-1]],mode:'lines',name:'Theil–Sen',line:{color:'#f3ece4',width:2,dash:'dot'}});
+ Plotly.react('ch2',ch2d,{...lay,title:{text:l('Yearly totals (purple = MODIS-scaled)','Yıllık toplam (mor = MODIS\'ten ölçekli)'),font:{size:12}}},cf);
+ if(TR){const pc=mt>0?100*TR.s/mt:0,sig=TR.p<.05;
+  $('k6').textContent=`${TR.s>=0?'+':'−'}${fmt(Math.abs(TR.s))} ${l('hotspots / year','sıcak nokta / yıl')} (${pf(pc,1)} ${l('of the median per year','/ yıl, medyana göre')})`;
+  $('k6s').textContent=`${tY[0]}–${tY[tY.length-1]}, n=${TR.n} · Mann–Kendall p = ${TR.p<.001?'<0.001':TR.p.toFixed(3)} → ${sig?(TR.s>0?l('significant increase','anlamlı artış'):l('significant decrease','anlamlı azalış')):l('no significant trend','anlamlı trend yok')} (α = 0.05). ${l('Year-to-year variability is large; the trend is a summary, not a forecast.','Yıldan yıla değişkenlik büyüktür; trend bir özettir, tahmin değildir.')}`}
+ else{$('k6').textContent='–';$('k6s').textContent=l('Select at least 8 years from 2003 onward.','2003 sonrasından en az 8 yıl seçin.')}
+ TRD=TR?{...TR,y0:tY[0],y1:tY[tY.length-1]}:null;
+ // on this day (±3 days) across years
+ const oy=[],ov=[];for(let y=Math.max(y0,SENS=='raw_viirs'?2012:2000);y<=y1;y++){if(y==2000&&(od[1]<11&&!(od[1]==10&&od[2]>=29)))continue;oy.push(y);ov.push(otd[y-2000])}
+ const osel=od[0]>=2000&&od[0]<=2025?od[0]:null,obase=oy.filter(y=>y>=2003&&y!=osel).map(y=>otd[y-2000]),omd=med(obase),otv=osel!=null?otd[osel-2000]:null;
+ const orank=osel!=null&&oy.includes(osel)?1+oy.filter(y=>otd[y-2000]>otv).length:null;
+ OTD={d:fd(new Date(Date.UTC(2001,od[1]-1,od[2]))),y:osel,v:otv,md:omd,rank:orank,n:oy.length};
+ $('otr').innerHTML=osel!=null&&oy.includes(osel)?`<span class="big">${OTD.d} ${osel} ±3: ${fmt(otv)}</span><br><small>${l('Median of the same days in other years (2003–2025)','Diğer yıllarda aynı günlerin medyanı (2003–2025)')}: ${fmt(omd)}${omd>0?` · <b>${(otv/omd).toFixed(1)}×</b>`:''} · ${l('rank','sıra')} ${orank} / ${oy.length}</small>`:`<small>${l('Median of these days (2003–2025)','Bu günlerin medyanı (2003–2025)')}: ${fmt(omd)}</small>`;
+ Plotly.react('ch3',[{x:oy,y:ov,type:'bar',marker:{color:oy.map(y=>y==osel?'#ff5a1f':y<2012&&SENS=='intensity'?'#a78bfa':'#2dd4bf')},hovertemplate:'%{x}: %{y:.0f}<extra></extra>',showlegend:false},{x:oy,y:oy.map(()=>omd),mode:'lines',line:{color:'#fbbf24',dash:'dash'},name:l('median','medyan'),hoverinfo:'skip'}],{...lay,margin:{l:44,r:8,t:8,b:26},showlegend:false},cf);
+ OVS={OM,OVV};renderOverlap();
  const t5y=yr.map((y,i)=>[y,tot[i]]).sort((a,b)=>b[1]-a[1]).slice(0,5),tm=[];for(let y=y0;y<=y1;y++)for(let m=0;m<12;m++)tm.push([y,m,mo[y-2000][m]]);tm.sort((a,b)=>b[2]-a[2]);
  $('top5').innerHTML=`<b>${l('Top 5 years','En yoğun 5 yıl')}:</b> ${t5y.map(a=>`${a[0]} (${fmt(a[1])})`).join(' · ')}<br><b>${l('Top 5 months','En yoğun 5 ay')}:</b> ${tm.slice(0,5).map(a=>`${MN[LANG][a[1]]} ${a[0]} (${fmt(a[2])})`).join(' · ')}`;
  // anomalies
@@ -778,16 +872,108 @@ function refresh(){
  if(REF)$('ref').innerHTML=`<b>${l('Reference check','Referans kontrolü')} (${l('whole region, 2003–2025, harmonized, team method z ≥ 2, min 20','tüm bölge, 2003–2025, uyumlaştırılmış, ekip yöntemi z ≥ 2, min 20')}):</b> ${l('critical weeks','kritik haftalar')} <b>${rng(REF.crit)}</b> <small>[JS 0-based: ${rng0(REF.crit)}]</small> · ${l('core weeks','çekirdek haftalar')} <b>${rng(REF.core)}</b> <small>[JS 0-based: ${rng0(REF.core)}]</small> · <b>${REF.an.length}</b> ${l('unusual weeks','olağandışı hafta')}`;
  drawMap();post()}
 MLG.addTo(map);
-function drawMap(){LG.clearLayers();if(!N)return;HIZ=map.getZoom()>=9;const y0=+$('y0').value,y1=+$('y1').value,ns=$('ns').checked,v=V[SENS],c=new Map();
+function drawMap(){LG.clearLayers();if(!N)return;HIZ=map.getZoom()>=9;const y0=+$('y0').value,y1=+$('y1').value,ns=$('ns').checked,v=V[SENS],c=new Map(),freq=MAPM=='freq'&&!FOCUS;
  for(let i=0;i<N;i++){const y=Y[i];if(!SEL[i]||y<y0||y>y1||(ns&&ST[i])||v[i]<=0||(SENS=='raw_viirs'&&y<2012))continue;
-  if(FOCUS&&!(FOCUS.y==y&&(FOCUS.w!=null?FOCUS.w==W[i]:FOCUS.m==M[i])))continue;c.set(K[i],(c.get(K[i])||0)+v[i])}
- const a=[...c].sort((p,s)=>s[1]-p[1]).slice(0,2500),S=mkScale(a.map(z=>z[1]));
- a.forEach(([k,s])=>{const[la,lo]=k.split('_').map(Number);L.rectangle([[la-.125,lo-.125],[la+.125,lo+.125]],{stroke:HIZ,color:cc(s,S)[0],weight:1.5,fillColor:cc(s,S)[0],fillOpacity:OPAC*(HIZ?.45:1)}).bindTooltip(`${fmt(s)} · ${la}°N ${lo}°E`).addTo(LG)});
- $('mi').textContent=FOCUS?`${l('Map: only','Harita: yalnızca')} ${FOCUS.y} ${FOCUS.w!=null?l('week','hafta')+' '+(FOCUS.w+1):MN[LANG][FOCUS.m-1]} (${a.length} ${l('cells','hücre')})`:`${l('Map: all selected years','Harita: seçili tüm yıllar')} (${a.length} ${l('cells','hücre')})`;$('mclr').hidden=!FOCUS;updMapLegend(S,FOCUS?l('Hotspots per cell, selected '+(FOCUS.w!=null?'week':'month'),'Hücre başına sıcak nokta, seçili '+(FOCUS.w!=null?'hafta':'ay')):l('Hotspots per cell, all selected years','Hücre başına sıcak nokta, seçili tüm yıllar'));updImg()}
+  if(FOCUS&&!(FOCUS.y==y&&(FOCUS.w!=null?FOCUS.w==W[i]:FOCUS.m==M[i])))continue;c.set(K[i],freq?(c.get(K[i])||0)|(1<<(y-2000)):(c.get(K[i])||0)+v[i])}
+ if(freq)c.forEach((b,k)=>{let n=0;while(b){n+=b&1;b>>>=1}c.set(k,n)});
+ const ny=y1-Math.max(y0,SENS=='raw_viirs'?2012:2000)+1,a=[...c].sort((p,s)=>s[1]-p[1]).slice(0,2500),mx=a.length?a[0][1]:0,S=freq?{lo:1,hi:Math.max(ny,2),max:mx,lin:true}:mkScale(a.map(z=>z[1]));
+ a.forEach(([k,s])=>{const[la,lo]=k.split('_').map(Number);L.rectangle([[la-.125,lo-.125],[la+.125,lo+.125]],{stroke:HIZ,color:cc(s,S)[0],weight:1.5,fillColor:cc(s,S)[0],fillOpacity:OPAC*(HIZ?.45:1)}).bindTooltip(freq?`${s} / ${ny} ${l('years with fire','yıl yangın')} · ${la}°N ${lo}°E`:`${fmt(s)} · ${la}°N ${lo}°E`).addTo(LG)});
+ const mxs=a.length?` · ${l('max cell','maks. hücre')}: ${freq?mx+' / '+ny+' '+l('yrs','yıl'):fmt(mx)}`:'';
+ $('mi').textContent=(FOCUS?`${l('Map: only','Harita: yalnızca')} ${FOCUS.y} ${FOCUS.w!=null?l('week','hafta')+' '+(FOCUS.w+1):MN[LANG][FOCUS.m-1]} (${a.length} ${l('cells','hücre')}`:`${freq?l('Map: fire frequency','Harita: yangın sıklığı'):l('Map: all selected years','Harita: seçili tüm yıllar')} (${a.length} ${l('cells','hücre')}`)+mxs+')';$('mclr').hidden=!FOCUS;
+ updMapLegend(S,freq?l(`Years with ≥1 hotspot (of ${ny} selected)`,`≥1 sıcak noktalı yıl sayısı (seçili ${ny} yıldan)`):FOCUS?l('Hotspots per cell, selected '+(FOCUS.w!=null?'week':'month'),'Hücre başına sıcak nokta, seçili '+(FOCUS.w!=null?'hafta':'ay')):l('Hotspots per cell, all selected years','Hücre başına sıcak nokta, seçili tüm yıllar'));updImg()}
 function dl(n,x){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([x],{type:'text/csv'}));a.download=n;a.click()}
 function dlRows(){const y0=+$('y0').value,y1=+$('y1').value,ns=$('ns').checked,o=['date,cell_id,lat,lon,harmonized_intensity,raw_modis,raw_viirs,persistent_source'];
  for(let i=0;i<N;i++)if(SEL[i]&&Y[i]>=y0&&Y[i]<=y1&&!(ns&&ST[i]))o.push([D[i],K[i],LA[i].toFixed(3),LO[i].toFixed(3),V.intensity[i].toFixed(2),V.raw_modis[i],V.raw_viirs[i],ST[i]].join(','));dl('hotspots_selection.csv',o.join('\n'))}
 function dlSum(){const o=['year,month,hotspots,median_for_month,percent_of_median'];for(let y=CUR.y0;y<=CUR.y1;y++)for(let m=0;m<12;m++){const x=CUR.mo[y-2000][m],d=CUR.mdM[m];o.push([y,m+1,x.toFixed(1),d.toFixed(1),d>0?(100*x/d).toFixed(0):''].join(','))}dl('monthly_summary.csv',o.join('\n'))}
+// ===== Trend: Theil-Sen slope (median of pairwise slopes) + Mann-Kendall test (normal approximation, no tie correction) =====
+const Phi=z=>{const t=1/(1+.3275911*Math.abs(z)),e=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-z*z/2);return z>=0?.5*(1+e):.5*(1-e)};
+function trend(x,y){const n=x.length;if(n<8)return null;const sl=[];let S=0;
+ for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){sl.push((y[j]-y[i])/(x[j]-x[i]));S+=Math.sign(y[j]-y[i])}
+ const s=med(sl),b=med(y.map((v,i)=>v-s*x[i])),vs=n*(n-1)*(2*n+5)/18,z=S===0?0:(S-Math.sign(S))/Math.sqrt(vs);return{s,b,S,z,p:2*(1-Phi(Math.abs(z))),n}}
+let TRD=null,OTD=null,LASTAN=[];
+// ===== Overlap check for the selected area: MODIS x factor vs. real VIIRS, 2012-2025 =====
+function renderOverlap(){
+ if(!OVS)return;const{OM,OVV}=OVS,x=[],ob=[],pi=[],pf1=[];let so=0,sp=0,se=0,mo=0,to=0,tp=0,te=0;
+ for(let k=0;k<168;k++){const y=2012+Math.floor(k/12),m=k%12+1;x.push(`${y}-${String(m).padStart(2,'0')}-15`);ob.push(OVV[k]);const p=OM[k]*(F[m]||0);pi.push(p);so+=OVV[k];sp+=p;se+=Math.abs(OVV[k]-p);
+  if(y>=2019){const q=OM[k]*(FR1[m]||0);pf1.push(q);to+=OVV[k];tp+=q;te+=Math.abs(OVV[k]-q)}else pf1.push(null)}
+ mo=so/168;let ssr=0,sst=0;for(let k=0;k<168;k++){ssr+=(ob[k]-pi[k])**2;sst+=(ob[k]-mo)**2}
+ const r2=sst>0?1-ssr/sst:null,wi=so>0?100*se/so:null,bi=so>0?100*(sp-so)/so:null,wf=to>0?100*te/to:null,bf=to>0?100*(tp-to)/to:null;
+ Plotly.react('ov',[{x,y:ob,mode:'lines',name:l('Real VIIRS','Gerçek VIIRS'),line:{color:'#ff8a3d',width:2}},{x,y:pi,mode:'lines',name:l('MODIS × monthly factor','MODIS × aylık faktör'),line:{color:'#8fd3ff',width:1.6}},{x,y:pf1,mode:'lines',name:l('Forward test ① (factors from 2012–2018 only)','İleriye test ① (yalnız 2012–2018 faktörleri)'),line:{color:'#f3ece4',width:1.4,dash:'dot'}}],
+  {paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#e6ddd3',size:11,family:FONT},margin:{l:50,r:10,t:8,b:40},legend:{orientation:'h',y:-.2},hovermode:'x unified',
+   yaxis:{title:{text:l('hotspots / month','sıcak nokta / ay'),font:{size:11}},gridcolor:'rgba(148,163,184,.18)',zeroline:false},xaxis:{showgrid:false},
+   shapes:[{type:'rect',xref:'x',yref:'paper',x0:'2019-01-01',x1:'2025-12-31',y0:0,y1:1,fillcolor:'rgba(243,236,228,.05)',line:{width:0}}]},{responsive:true,displaylogo:false});
+ $('ov').setAttribute('aria-label',t('ov_h'));
+ const few=so<300,reg=VAL?pf(S1().aylik.w):'~18%';
+ $('ov_cap').innerHTML=so>0?l(`<b>${AOI?AOIL:'Whole region'}</b>, monthly totals 2012–2025: R² = <b>${r2!=null?r2.toFixed(2):'–'}</b>, WAPE ${pf(wi)}, bias ${pf(bi,1)} (factors from all overlap years). <b>Forward test</b> (factors learned on the whole region in 2012–2018, scored here on 2019–2025): WAPE <b>${wf!=null?pf(wf):'–'}</b>, bias ${bf!=null?pf(bf,1):'–'}. For comparison, the whole region scores ${reg} in the validation table.${few?' <b>Fewer than 300 VIIRS detections in this area: treat these numbers as indicative only.</b>':''}`,
+  `<b>${AOI?AOIL:'Tüm bölge'}</b>, 2012–2025 aylık toplamları: R² = <b>${r2!=null?r2.toFixed(2):'–'}</b>, WAPE ${pf(wi)}, bias ${pf(bi,1)} (tüm örtüşme yıllarının faktörleri). <b>İleriye test</b> (2012–2018\'de tüm bölgeden öğrenilen faktörler, burada 2019–2025\'te puanlandı): WAPE <b>${wf!=null?pf(wf):'–'}</b>, bias ${bf!=null?pf(bf,1):'–'}. Karşılaştırma için tüm bölge doğrulama tablosunda ${reg}.${few?' <b>Bu alanda 300\'den az VIIRS tespiti var: sayıları yalnızca gösterge olarak okuyun.</b>':''}`):l('No detections in this area in 2012–2025.','Bu alanda 2012–2025\'te tespit yok.')}
+// ===== Map mode: hotspot total or fire frequency (number of years with fire) =====
+function setMapMode(m){MAPM=m;$('mm_s').className=m=='sum'?'on':'';$('mm_f').className=m=='freq'?'on':'';drawMap()}
+// ===== Guided demo (4 steps) =====
+const TOUR=[
+ ()=>{FOCUS=null;SENS='intensity';VIEW='w';resetArea();openPanel('meth')},
+ ()=>{SENS='intensity';VIEW='w';$('pre').value=PR.findIndex(p=>p[3]==2021);preset();setCal('open');focusWeek(2021,30);openPanel(null)},
+ ()=>{$('cy').value=2021;$('cm').value=8;$('otd').value='2021-07-31';refresh();openPanel('ins')},
+ ()=>{openPanel('an')}];
+function tourText(){const k=T['tour'+(TSTEP+1)],tr=LANG=='tr';$('tstep').textContent=tr?k[1]:k[0];$('ttxt').innerHTML=tr?k[3]:k[2];$('tback').hidden=TSTEP==0;$('tnext').textContent=t(TSTEP==TOUR.length-1?'t_done':'t_next')}
+function tour(i){if(i<0||!N)return;if(i>=TOUR.length)return tourEnd();TSTEP=i;if(!$('hint').hidden)hideHint();$('tour').hidden=false;tourText();TOUR[i]()}
+function tourEnd(){TSTEP=-1;$('tour').hidden=true}
+// ===== One-page report (opens a printable page; "Save as PDF" in the print dialog) =====
+function report(){
+ if(!N)return;const w=window.open('','_blank');if(!w)return alert(l('Please allow pop-ups for this page to open the report.','Raporu açmak için bu sayfada açılır pencerelere izin verin.'));
+ w.document.write('<p style="font-family:sans-serif">…</p>');
+ const white=id=>{const g=$(id);if(!g||!g.data)return Promise.resolve('');return Plotly.toImage({data:g.data,layout:{...g.layout,paper_bgcolor:'#fff',plot_bgcolor:'#fff',font:{...(g.layout.font||{}),color:'#222'}}},{format:'png',width:720,height:300}).catch(()=>'')};
+ Promise.all(['ch2','ch1','ch3'].map(white)).then(([i2,i1,i3])=>{
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])),tx=id=>{const d=document.createElement('div');d.innerHTML=$(id).innerHTML.replace(/<br\s*\/?>/gi,' · ');return d.textContent.replace(/\s+/g,' ').trim()},y0=$('y0').value,y1=$('y1').value,sens=t('se'+SK.indexOf(SENS));
+  const an=LASTAN.slice(0,10).map(a=>`<li>${a.y} · ${l('week','hafta')} ${a.w+1} (${wr(a.y,a.w)}): ${fmt(a.v)} · z = ${a.z.toFixed(2)}${a.y<2012&&SENS=='intensity'?' ◇':''}</li>`).join('')||`<li>${l('none at this sensitivity','bu duyarlılıkta yok')}</li>`;
+  const err=VAL?pf(S1().aylik.w):'~18%',img=(s,c)=>s?`<figure><img src="${s}" alt=""><figcaption>${c}</figcaption></figure>`:'';
+  const html=`<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${esc(t('tt'))} – ${esc($('k1').textContent)}</title><style>
+  body{font:12px/1.45 Barlow,'Segoe UI',Arial,sans-serif;color:#1d1a17;margin:18px 24px;max-width:780px}h1{font-size:20px;margin:0}h2{font-size:14px;margin:14px 0 4px;border-bottom:1px solid #ddd;padding-bottom:2px}
+  .k{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.k div{border:1px solid #ddd;border-radius:6px;padding:6px 8px}.k b{display:block;font-size:15px}.k small,small{color:#555}
+  figure{margin:6px 0;break-inside:avoid}img{width:100%}figcaption{font-size:10px;color:#555}ul{margin:4px 0 4px 16px;padding:0}li{margin:1px 0}
+  table.cal{border-collapse:separate;border-spacing:1px;font-size:7px;width:100%;table-layout:fixed}table.cal td{height:8px;line-height:8px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}table.cal th{font-weight:600;color:#555;white-space:nowrap;overflow:hidden}table.cal th:first-child{width:44px;text-align:right}
+  table.cal th.co{background:#ff5a1f;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}table.cal th.cr{background:#f6c9b3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.a1,.a2,.a3{outline:1.5px solid #000;outline-offset:-1.5px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media print{body{margin:8mm}}</style></head><body>
+  <h1>${esc(t('tt'))}: ${esc($('k1').textContent)}</h1><small>${esc($('k1s').textContent)} · ${y0}–${y1} · ${esc(sens)} · ${l('NASA FIRMS MODIS + VIIRS S-NPP, harmonized','NASA FIRMS MODIS + VIIRS S-NPP, uyumlaştırılmış')} · ${l('generated','oluşturuldu')} ${new Date().toISOString().slice(0,10)}</small>
+  <h2>${l('Key facts','Temel bilgiler')}</h2><div class="k"><div><small>${t('k2')}</small><b>${esc($('k2').textContent)}</b><small>${esc($('k2s').textContent)}</small></div><div><small>${t('k3')}</small><b>${esc($('k3').textContent)}</b></div><div><small>${t('k5')}</small><b>${esc($('k5').textContent)}</b></div>
+  <div><small>${t('k4')}</small><b>${esc($('k4').textContent)}</b></div><div style="grid-column:span 2"><small>${t('k6')}</small><b>${esc($('k6').textContent)}</b><small>${esc($('k6s').textContent)}</small></div></div>
+  <h2>${t('now')}</h2><p>${esc(tx('nr'))}</p>
+  <h2>${t('otd_h')}</h2><p>${esc(tx('otr'))}</p>
+  <div class="two">${img(i2,l('Yearly totals with median and Theil–Sen trend','Medyan ve Theil–Sen trendiyle yıllık toplamlar'))}${img(i1,l('Seasonal cycle: median, P10–P90 and the selected year','Mevsimsel döngü: medyan, P10–P90 ve seçili yıl'))}</div>
+  <h2>${t('cal')}</h2>${$('cal').innerHTML}<small>${t('legend')}</small>
+  <h2>${l('Unusual weeks (candidates to review)','Olağandışı haftalar (incelenecek adaylar)')}</h2><ul>${an}</ul>
+  <h2>${l('How to read these numbers','Bu sayılar nasıl okunmalı')}</h2><ul>
+  <li>${l(`Counts are satellite hotspot detections (not burned area). 2012–2025 are VIIRS S-NPP; 2000–2011 are MODIS scaled to VIIRS-equivalent counts with one factor per calendar month (◇). Typical error of the scaled monthly total for the whole region: ${err}; it is larger for small areas.`,`Sayılar uydu sıcak nokta tespitleridir (yanan alan değil). 2012–2025 VIIRS S-NPP; 2000–2011 MODIS'in her takvim ayı için bir faktörle VIIRS eşdeğerine ölçeklenmiş hâlidir (◇). Tüm bölgenin ölçeklenmiş aylık toplamı için tipik hata: ${err}; küçük alanlarda daha büyüktür.`)}</li>
+  <li>${l('Before 4 July 2002 only Terra flew (⚠): those values use Terra-only factors and are the least certain.','4 Temmuz 2002 öncesinde yalnızca Terra vardı (⚠): bu değerler yalnız-Terra faktörleri kullanır ve en belirsiz olanlardır.')}</li>
+  <li>${l('Unusual weeks are statistical candidates (z-score of log counts per calendar week), not confirmed events.','Olağandışı haftalar istatistiksel adaylardır (takvim haftası başına log sayımların z-skoru), kesin olay değildir.')}</li></ul>
+  <small>${l('Data: NASA FIRMS (MODIS_SP, VIIRS_SNPP_SP). Independent NASA Space Apps Challenge 2026 student project, not endorsed by NASA. Code written with AI assistance (Claude, Gemini); see README.','Veri: NASA FIRMS (MODIS_SP, VIIRS_SNPP_SP). Bağımsız NASA Space Apps Challenge 2026 öğrenci projesi; NASA tarafından onaylanmamıştır. Kod yapay zekâ yardımıyla yazıldı (Claude, Gemini); bkz. README.')} ${esc(location.href.split('#')[0])}</small>
+  <script>setTimeout(()=>print(),500)<\/script></body></html>`;
+  w.document.open();w.document.write(html);w.document.close()})}
+// ===== Another region: grid the user's own NASA FIRMS archive CSVs in the browser =====
+function loadOwn(files){
+ if(!files||!files.length)return;showLoad();$('own_s').textContent='';
+ Promise.all([...files].map(f=>f.text())).then(txts=>{
+  const agg=new Map();let nM=0,nV=0;
+  txts.forEach(txt=>{const ln=txt.replace(/^﻿/,'').trim().split(/\r?\n/),h=ln[0].toLowerCase().split(',').map(x=>x.trim().replace(/"/g,''));
+   const iD=h.indexOf('acq_date'),iLa=h.indexOf('latitude'),iLo=h.indexOf('longitude'),iS=h.indexOf('instrument'),iSat=h.indexOf('satellite'),iT=h.indexOf('type'),iC=h.indexOf('confidence'),fileV=h.includes('bright_ti4');
+   if(iD<0||iLa<0||iLo<0)throw new Error('not a FIRMS CSV');
+   for(let i=1;i<ln.length;i++){const c=ln[i].split(',');if(c.length<=Math.max(iD,iLa,iLo))continue;
+    if(iT>-1&&c[iT]!==undefined&&c[iT].trim()!==''&&c[iT].trim()!=='0')continue;
+    const isV=iS>-1?/VIIRS/i.test(c[iS]):fileV,cf=iC>-1?(c[iC]||'').trim().toLowerCase():'';
+    if(isV?(cf=='l'||cf=='low'):(cf!==''&&+cf<30))continue;
+    const d=c[iD].trim(),la=Math.floor(+c[iLa]/.25)*.25+.125,lo=Math.floor(+c[iLo]/.25)*.25+.125;if(isNaN(la)||isNaN(lo)||d.length<10)continue;
+    const cid=`${la.toFixed(3)}_${lo.toFixed(3)}`,key=d+'|'+cid;let o=agg.get(key);if(!o)agg.set(key,o={d,cid,la,lo,m:0,mt:0,v:0});
+    if(isV){o.v++;nV++}else{o.m++;nM++;if(iSat>-1&&/^t/i.test((c[iSat]||'').trim()))o.mt++}}});
+  if(!agg.size)throw new Error('no usable detections');
+  // learn monthly factors from this region's own 2012+ overlap when it is large enough; else keep the bundled ones
+  const sm=new Float64Array(13),sv=new Float64Array(13),st=new Float64Array(13);agg.forEach(o=>{if(+o.d.slice(0,4)>=2012){const m=+o.d.slice(5,7);sm[m]+=o.m;sv[m]+=o.v;st[m]+=o.mt}});
+  const SM=sm.reduce((a,b)=>a+b,0),SV=sv.reduce((a,b)=>a+b,0),STT=st.reduce((a,b)=>a+b,0),own=SM>=300&&SV>=300;
+  if(own){const pooled=SV/SM,pt=STT>0?SV/STT:null,f={},ft={};for(let m=1;m<=12;m++){f[m]=sm[m]>=30?sv[m]/sm[m]:pooled;ft[m]=st[m]>=30?sv[m]/st[m]:(pt||2*f[m])}F=f;FT=ft}
+  const out=['date,cell_id,lat,lon,intensity,raw_modis,raw_viirs'];
+  [...agg.values()].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0).forEach(o=>{const y=+o.d.slice(0,4),mo=+o.d.slice(5,7),int=y>=2012?o.v:o.m*((o.d<'2002-07-04'?FT[mo]:F[mo])||0);out.push(`${o.d},${o.cid},${o.la},${o.lo},${int.toFixed(2)},${o.m},${o.v}`)});
+  OWN=true;AOI=null;AOIL='';clr();FOCUS=null;parseGridCSV(out.join('\n'));
+  $('own_s').textContent=l(`Loaded ${fmt(nM)} MODIS + ${fmt(nV)} VIIRS detections → ${fmt(N)} cell-days. ${own?'Monthly factors learned from this region\'s 2012+ overlap.':'Too little 2012+ overlap: the bundled Türkiye factors are used.'}`,`${fmt(nM)} MODIS + ${fmt(nV)} VIIRS tespiti yüklendi → ${fmt(N)} hücre-gün. ${own?'Aylık faktörler bu bölgenin 2012+ örtüşmesinden öğrenildi.':'2012+ örtüşmesi yetersiz: paketteki Türkiye faktörleri kullanıldı.'}`);
+  VSIG='';refresh()
+ }).catch(e=>{console.warn(e);$('load').classList.add('done');$('own_s').textContent=l('Could not read these files. Use NASA FIRMS archive CSVs (columns latitude, longitude, acq_date, …).','Dosyalar okunamadı. NASA FIRMS arşiv CSV\'lerini kullanın (latitude, longitude, acq_date, … sütunları).')})}
 // ===== Validation table + yearly-ratio chart: every number is read from data/*.csv =====
 function csvRows(x){return x.replace(/^﻿/,'').trim().split(/\r?\n/).map(r=>{const o=[];let c='',q=false;for(const ch of r){if(ch=='"')q=!q;else if(ch==','&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o.map(s=>s.trim())})}
 function parseVal(txt){
@@ -795,7 +981,7 @@ function parseVal(txt){
  if([iS,iM,iW,iB].some(i=>i<0))throw new Error('validation_summary_v2.csv: unexpected header');
  const S=new Map();
  R.slice(1).forEach(r=>{const m=(r[iM]||'').toLowerCase();
-  if(m!='tek'&&m!='aylik')return; // only the two methods the product uses; experimental rows of the CSV are never shown
+  if(m!='tek'&&m!='aylik'&&m!='us')return; // the two methods compared in the main table + the team's power-law experiment (shown greyed, not used)
   const id=((r[iS]||'').match(/^\s*(\d+)/)||[])[1],w=parseFloat(r[iW]),b=parseFloat(r[iB]);if(!id||!isFinite(w)||!isFinite(b))return;
   if(!S.has(id))S.set(id,{id,raw:r[iS]});S.get(id)[m]={w,b}});
  const o=[...S.values()].filter(s=>s.tek&&s.aylik).sort((a,b)=>a.id-b.id);if(!o.length)throw new Error('validation_summary_v2.csv: no usable rows');return o}
@@ -814,14 +1000,14 @@ function scNote(y){
  if(y<2003)s+='&#10;'+t('sc0');
  return s.replace(/"/g,'&quot;')}
 function renderVal(){
- const sig=LANG+(VAL?1:0)+(YR?1:0)+VERR;if(sig==VSIG)return;VSIG=sig;
+ const sig=LANG+(VAL?1:0)+(YR?1:0)+VERR+(ALT?1:0)+(GS?1:0)+(DR?1:0)+(OWN?1:0);if(sig==VSIG)return;VSIG=sig;renderExtra();
  const show=VAL&&YR,dv=document.querySelector('details.vals');
  $('vt').parentNode.style.display=show?'':'none';$('rc').style.display=show?'':'none';$('rc_hd').style.display=show?'':'none';dv.style.display=show?'':'none';
  $('vt').innerHTML='';$('vt_notes').innerHTML='';$('rc_cap').innerHTML='';
  if(!show){try{Plotly.purge('rc')}catch(e){}
   $('vt_foot').innerHTML=VERR?t('vt_err'):l('Loading validation data…','Doğrulama verileri yükleniyor…');return}
  const s1=S1(),s2=sch('2'),s3=sch('3');
- $('vt').innerHTML=`<thead><tr><th class="rh" rowspan="2">${t('vt_corner')}</th>${VAL.map(s=>`<th colspan="2">${T['vs'+s.id]?t('vs'+s.id):s.raw}</th>`).join('')}</tr><tr>${VAL.map(()=>'<th>WAPE</th><th>Bias</th>').join('')}</tr></thead><tbody>${[['tek','vt_f1',''],['aylik','vt_f2','used']].map(([k,lab,cls])=>`<tr class="${cls}"><th class="rh" scope="row">${t(lab)}</th>${VAL.map(s=>`<td>${pf(s[k].w)}</td><td>${pf(s[k].b,1)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+ $('vt').innerHTML=`<thead><tr><th class="rh" rowspan="2">${t('vt_corner')}</th>${VAL.map(s=>`<th colspan="2">${T['vs'+s.id]?t('vs'+s.id):s.raw}</th>`).join('')}</tr><tr>${VAL.map(()=>'<th>WAPE</th><th>Bias</th>').join('')}</tr></thead><tbody>${[['tek','vt_f1',''],['aylik','vt_f2','used']].concat(VAL.every(s=>s.us)?[['us','am_us','exp']]:[]).map(([k,lab,cls])=>`<tr class="${cls}"><th class="rh" scope="row">${t(lab)}</th>${VAL.map(s=>`<td>${pf(s[k].w)}</td><td>${pf(s[k].b,1)}</td>`).join('')}</tr>`).join('')}</tbody>`;
  const mxw=Math.max(...VAL.map(s=>s.aylik.w));
  $('vt_foot').innerHTML=t('vt_def')+'<br>'+fill(t('vt_foot'),{n:tol()})+(s1.aylik.w>=mxw?t('vt_foot2'):'');
  const ab=Math.abs,pos=s1.tek.b>0&&s1.aylik.b>0,shr=!!(s2&&s3)&&['tek','aylik'].every(k=>ab(s1[k].b)>ab(s2[k].b)&&ab(s2[k].b)>ab(s3[k].b));
@@ -845,7 +1031,40 @@ function renderVal(){
  if(mb<ma&&pos)cap+=fill(t('rc_c2'),{bt:pf(s1.tek.b,1),bm:pf(s1.aylik.b,1)}); // the cause is only stated when the data really show it
  $('rc_cap').innerHTML=cap;
  $('rc_tbl').innerHTML=`<tr><th class="rh">${t('rc_yr')}</th>${YR.map(a=>`<th>${a.y}</th>`).join('')}</tr><tr><th class="rh">VIIRS / MODIS</th>${YR.map(a=>`<td>${n2(a.r)}</td>`).join('')}</tr>`}
+// ===== Method panel extras: alternative methods, GBM sensitivity, the factors themselves, why the ratio fell =====
+function renderExtra(){
+ const lay={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#e6ddd3',size:11,family:FONT},legend:{orientation:'h',y:-.2}},cf={responsive:true,displaylogo:false};
+ // alternative methods table
+ const A=ALT&&!OWN?ALT:null;$('alt').parentNode.style.display=A?'':'none';$('alt_notes').style.display=A?'':'none';
+ if(A){const g=(m,lv,sc)=>A.find(r=>r.method==m&&r.level==lv&&String(r.scheme)==sc),meths=['single','monthly','power_law','linear','quantile_map','subregion','square_shrunk','gbm_poisson'],cols=[['region','1'],['region','2'],['region','3'],['square','1'],['square','2'],['square','3']];
+  const best=cols.map(([lv,sc])=>Math.min(...meths.map(m=>g(m,lv,sc)).filter(Boolean).map(r=>r.wape)));
+  $('alt').innerHTML=`<thead><tr><th class="rh" rowspan="2">WAPE <small>(bias)</small></th><th colspan="3">${t('alt_lv')}</th><th colspan="3">${t('alt_sq')}</th></tr><tr>${cols.map(c=>`<th>${['','①','②','③'][c[1]]}</th>`).join('')}</tr></thead><tbody>${meths.map(m=>`<tr class="${m=='monthly'?'used':''}"><th class="rh" scope="row">${t('am_'+m)}</th>${cols.map(([lv,sc],j)=>{const r=g(m,lv,sc);return r?`<td class="${r.wape==best[j]?'best':''}">${pf(r.wape)}<small>${pf(r.bias,1)}</small></td>`:'<td>–</td>'}).join('')}</tr>`).join('')}</tbody>`;
+  const w=(m,lv,sc,k)=>{const r=g(m,lv,sc);return r?pf(r[k||'wape'],k=='bias'):'–'};
+  $('alt_notes').innerHTML=fill(t('alt_n'),{g1:w('gbm_poisson','region','1'),g2:w('gbm_poisson','region','2'),g3:w('gbm_poisson','region','3'),m1:w('monthly','region','1'),m2:w('monthly','region','2'),m3:w('monthly','region','3'),gb1:w('gbm_poisson','region','1','bias'),gb3:w('gbm_poisson','region','3','bias'),gs1:w('gbm_poisson','square','1'),ms1:w('monthly','square','1'),pl:w('power_law','region','1'),li:w('linear','region','1'),qm:w('quantile_map','region','1'),sr:w('subregion','region','1'),ss:w('square_shrunk','region','1')})}
+ // GBM sensitivity
+ const G=GS&&!OWN?GS:null;$('gs').style.display=G?'':'none';$('gs_cap').innerHTML='';
+ if(G){const x=G.map(r=>r.year),a=G.map(r=>r.monthly_factor),b=G.map(r=>r.gbm),d=G.map(r=>r.diff_pct),ma=mean(a),mb=mean(b);
+  const r=a.reduce((s,v,i)=>s+(v-ma)*(b[i]-mb),0)/Math.sqrt(a.reduce((s,v)=>s+(v-ma)**2,0)*b.reduce((s,v)=>s+(v-mb)**2,0));
+  Plotly.react('gs',[{x,y:a,type:'bar',name:l('Monthly factor (product)','Aylık faktör (ürün)'),marker:{color:'#a78bfa'}},{x,y:b,type:'bar',name:'Gradient boosting',marker:{color:'#8fd3ff'}}],{...lay,margin:{l:56,r:10,t:26,b:46},barmode:'group',title:{text:t('gs_t'),font:{size:11}},xaxis:{dtick:1,showgrid:false},yaxis:{gridcolor:'rgba(148,163,184,.18)'}},cf);
+  $('gs').setAttribute('aria-label',t('gs_t'));
+  const rk=v=>v.map(x=>v.filter(y=>y<x).length),ra=rk(a),rb=rk(b),n=a.length,rho=1-6*ra.reduce((s,v,i)=>s+(v-rb[i])**2,0)/(n*(n*n-1));
+  $('gs_cap').innerHTML=fill(t('gs_c'),{lo:pf(Math.max(...d),1),hi:pf(Math.min(...d),1),big:G.filter(r=>r.diff_pct<=-10).map(r=>r.year).join(', ')||'–',r:r.toFixed(3),rho:rho.toFixed(2)})}
+ // factors: Terra+Aqua vs Terra-only, with the MODIS sample size behind each month
+ const hasT=FT&&FT[1]!=null,X=MN[LANG],f=X.map((_,i)=>F[i+1]||0),ft=X.map((_,i)=>hasT?FT[i+1]:null);
+ Plotly.react('fc',[{x:X,y:f,type:'bar',name:t('fac_l1'),marker:{color:'#ff8a3d'},hovertemplate:'%{x}: %{y:.2f}<extra></extra>'},hasT?{x:X,y:ft,type:'bar',name:t('fac_l2'),marker:{color:'#8fd3ff'},hovertemplate:'%{x}: %{y:.2f}<extra></extra>'}:null,{x:X,y:Array.from(MC12),yaxis:'y2',mode:'lines+markers',name:t('fac_l3'),line:{color:'#9b9187',width:1.5},hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'}].filter(Boolean),
+  {...lay,margin:{l:50,r:56,t:8,b:46},barmode:'group',xaxis:{showgrid:false},yaxis:{title:{text:t('fac_y'),font:{size:11}},gridcolor:'rgba(148,163,184,.18)'},yaxis2:{overlaying:'y',side:'right',showgrid:false,title:{text:t('fac_l3'),font:{size:10}},tickfont:{size:9}}},cf);
+ $('fc').setAttribute('aria-label',t('fac_h')+': '+X.map((m,i)=>`${m} ${n2(f[i])}${hasT?' / '+n2(ft[i]):''}`).join(', '));
+ const avg=hasT?mean(f.map((v,i)=>ft[i]/v)):0,c=t('fac_c');
+ $('fc_cap').innerHTML=!hasT?'':(FSTAT&&!OWN?fill(c,{avg:n1(avg),j:n1(ft[0]),d:n1(ft[11]),wsh:pf(100*FSTAT.w),ssh:pf(100*FSTAT.s),tot:fmt(FSTAT.tot),s9:fmt(FSTAT.s9),s10:fmt(FSTAT.s10)}):l(`Terra-only factors are on average <b>${n1(avg)}×</b> the Terra + Aqua ones.`,`Yalnız-Terra faktörleri ortalama Terra + Aqua faktörlerinin <b>${n1(avg)} katıdır</b>.`));
+ // why the ratio fell
+ const D=DR&&!OWN?DR:null;$('drf').style.display=D?'':'none';
+ if(D){const P=k=>D.find(r=>String(r.year)==k),a=P('2012-2018'),b=P('2019-2025'),y21=P('2021'),ch=(x,y)=>pf(100*(y/x-1),1);
+  if(a&&b)$('drf').innerHTML=fill(t('drf'),{pa:n2(a.ratio),pb:n2(b.ratio),dp:ch(a.ratio,b.ratio),sa:pf(100*a.share_large),sb:pf(100*b.share_large),ra:n2(a.ratio_small),rb:n2(b.ratio_small),dr:ch(a.ratio_small,b.ratio_small),la:n2(a.ratio_large),lb:n2(b.ratio_large),dl:ch(a.ratio_large,b.ratio_large),s21:y21?pf(100*y21.share_large):'–',r21:y21?n2(y21.ratio):'–',dm:pf(Math.abs(100*(b.season_mix_ratio/a.season_mix_ratio-1)))})}}
 $('vbox').closest('details').addEventListener('toggle',e=>{if(e.target.open&&$('rc').data)try{Plotly.Plots.resize('rc')}catch(x){}});
+// extra method files: a missing one only hides its own section
+const getCSV=u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u);return r.text()}).then(csvRows);
+Promise.all([getCSV('data/method_comparison_v2.csv').catch(()=>null),getCSV('data/gbm_sensitivity_v2.csv').catch(()=>null),getCSV('data/ratio_drift_v2.csv').catch(()=>null)]).then(([a,g,d])=>{
+ const obj=R=>R?R.slice(1).map(r=>Object.fromEntries(R[0].map((h,i)=>[h.toLowerCase(),isNaN(+r[i])||r[i]===''?r[i]:+r[i]]))):null;ALT=obj(a);GS=obj(g);DR=obj(d);VSIG='';if(N)refresh()});
 Promise.all(['data/validation_summary_v2.csv','data/yearly_ratio_v2.csv'].map(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u);return r.text()}))).then(([a,b])=>{VAL=parseVal(a);YR=parseYR(b)}).catch(e=>{VERR=1;console.warn(e)}).then(()=>{VSIG='';if(N)refresh()});
 applyLang();
 </script></body></html>
