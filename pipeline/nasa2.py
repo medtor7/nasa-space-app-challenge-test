@@ -25,14 +25,14 @@ This notebook produces every data file the app ships with, from the NASA FIRMS A
      (Terra counts x Terra-only factors vs. Terra counts x Terra+Aqua factors).
   6. Day/night test (last cell): monthly factor (V0) vs. separate day and night monthly factors
      (V2) on the raw records, region and 1 deg blocks, three schemes, paired fold differences.
-     The cell prints its results; they are transcribed in data/daynight_test_v2.csv,
-     data/daynight_paired_v2.csv and data/daynight_factors_v2.csv.
+     The save cell after it ("KAYIT 1") writes data/daynight_test_v2.csv, data/daynight_paired_v2.csv
+     and data/daynight_factors_v2.csv.
   7. FRP-class test (last two cells): MODIS detections split into low / mid / high fire radiative power
      (33rd and 67th percentiles of the training years' MODIS FRP, recomputed in every fold), then
      V ~ sum of class counts x coefficients (V3a: 3 coefficients; V3b: 3 per season), non-negative least
      squares, fitted on 1 deg block-months or on regional monthly totals; compared with the monthly
-     factor (V0). The second cell runs both fits. Printed results are transcribed in
-     data/frp_test_v2.csv, data/frp_paired_v2.csv and data/frp_classes_v2.csv.
+     factor (V0). The second cell runs both fits; the save cell after it ("KAYIT 2") re-runs them and
+     writes data/frp_test_v2.csv, data/frp_paired_v2.csv and data/frp_classes_v2.csv.
 
 Requirements: a free NASA FIRMS MAP_KEY stored in Colab Secrets as FIRMS_KEY (it is never written
 in this file), Google Drive, pandas, numpy, matplotlib, requests.
@@ -1080,6 +1080,31 @@ for sname, scheme in schemes:
         se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else float('nan')
         print(f'{sname:26s} {level:6s} | kat sayısı: {len(d):2d} | ort. fark: {d.mean():6.1f} | standart hata: {se:5.1f}')
 
+# KAYIT 1 — gece/gündüz hücresinin HEMEN ardından çalıştır (sonraki FRP hücresi aynı değişken adlarını ezer).
+import pandas as pd, numpy as np
+OUT = '/content/drive/MyDrive/nasa_v2/'
+sid = {'Sabit': '1', 'Ileriye genisleyen': '2', 'Her yili disarida birak': '3'}
+mid = {'V0 aylık faktör (mevcut)': 'monthly', 'V2 gündüz/gece ayrı faktör': 'daynight'}
+t = []
+for r in rows:
+    for lv, w, b in (('region', 'bolge_WAPE', 'bolge_bias'), ('square', 'blok_WAPE', 'blok_bias')):
+        t.append({'scheme': sid[r['sema']], 'method': mid[r['model']], 'level': lv,
+                  'wape': round(r[w], 1), 'bias': round(r[b], 1)})
+pd.DataFrame(t).to_csv(OUT + 'daynight_test_v2.csv', index=False)
+p = []
+for sname, scheme in schemes:
+    for level, lv in (('bolge', 'region'), ('blok', 'square')):
+        d = (fold_wape(cache[(sname, 'V2 gündüz/gece ayrı faktör')], level)
+             - fold_wape(cache[(sname, 'V0 aylık faktör (mevcut)')], level))
+        se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else np.nan
+        p.append({'scheme': sid[sname], 'level': lv, 'folds': len(d), 'mean_diff': round(d.mean(), 1),
+                  'se': round(se, 1) if len(d) > 1 else ''})
+pd.DataFrame(p).to_csv(OUT + 'daynight_paired_v2.csv', index=False)
+diag.rename(columns={'k_gunduz': 'k_day', 'k_gece': 'k_night', 'k_toplam': 'k_total',
+                     'gece_payi_VIIRS_%': 'night_share_viirs', 'gece_payi_MODIS_%': 'night_share_modis'}
+            ).reset_index().to_csv(OUT + 'daynight_factors_v2.csv', index=False)
+print('Kaydedildi: daynight_test_v2.csv, daynight_paired_v2.csv, daynight_factors_v2.csv')
+
 # FRP sınıfına göre dönüşüm faktörü testi (V3a, V3b) ve V0 ile karşılaştırma.
 # Gece/gündüz hücresiyle aynı iskelet: blok x ay tablosu, üç şema, bölge ve blok WAPE/bias, eşleştirilmiş kat farkı.
 # Sınır değerleri HER KATTA yalnızca o katın eğitim yıllarındaki MODIS FRP'sinden (%33 ve %67) yeniden hesaplanır (sızıntı yok).
@@ -1521,3 +1546,44 @@ for FIT in ('blok', 'bolge'):
     print('\nV3a katsayı aralığı, her yılı dışarıda bırak (min-max):',
           {f'k{i+1}': f'{L[:, i].min():.2f}-{L[:, i].max():.2f}' for i in range(3)})
     print('Sıralama k1>k2>k3 olan kat sayısı:', int(((L[:, 0] > L[:, 1]) & (L[:, 1] > L[:, 2])).sum()), '/', len(L))
+
+# KAYIT 2 — ikinci FRP hücresinin (içinde "for FIT in ('blok', 'bolge')" olan) HEMEN ardından çalıştır.
+# Aynı modelleri iki fit için yeniden çalıştırır (birkaç dakika sürebilir) ve sonuçları kaydeder.
+import pandas as pd, numpy as np
+OUT = '/content/drive/MyDrive/nasa_v2/'
+sid = {'Sabit': '1', 'Ileriye genisleyen': '2', 'Her yili disarida birak': '3'}
+mid = {'V0 aylık faktör (mevcut)': 'monthly', 'V3a FRP sınıfı (3 katsayı)': 'frp_class',
+       'V3b FRP sınıfı x mevsim (12 katsayı)': 'frp_class_season'}
+fid = {'blok': 'block', 'bolge': 'region'}
+schemes = (('Sabit', fixed), ('Ileriye genisleyen', expanding), ('Her yili disarida birak', loyo))
+V0 = 'V0 aylık faktör (mevcut)'
+t, p = [], []
+for FIT in ('blok', 'bolge'):
+    coef_log.clear()
+    cache = {}
+    for sname, scheme in schemes:
+        for mname, m in models.items():
+            if mname == V0 and FIT == 'bolge':
+                continue                      # V0 iki fit için aynıdır, bir kez yazılır
+            r = run(mname, m, sname, scheme)
+            cache[(sname, mname)] = r
+            rg = region(r)
+            for lv, rr in (('region', rg), ('square', r)):
+                t.append({'scheme': sid[sname], 'method': mid[mname],
+                          'fit': '' if mname == V0 else fid[FIT], 'level': lv,
+                          'wape': round(wape(rr), 1), 'bias': round(bias(rr), 1)})
+        if FIT == 'bolge':
+            cache[(sname, V0)] = run(V0, models[V0], sname, scheme)
+    for mname in list(models)[1:]:
+        for sname, scheme in schemes:
+            for level, lv in (('bolge', 'region'), ('blok', 'square')):
+                d = fold_wape(cache[(sname, mname)], level) - fold_wape(cache[(sname, V0)], level)
+                se = d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else np.nan
+                p.append({'method': mid[mname], 'fit': fid[FIT], 'scheme': sid[sname], 'level': lv,
+                          'folds': len(d), 'mean_diff': round(d.mean(), 1),
+                          'se': round(se, 1) if len(d) > 1 else ''})
+pd.DataFrame(t).to_csv(OUT + 'frp_test_v2.csv', index=False)
+pd.DataFrame(p).to_csv(OUT + 'frp_paired_v2.csv', index=False)
+pay.rename(columns={'dusuk': 'share_low', 'orta': 'share_mid', 'yuksek': 'share_high'}
+           ).rename_axis('month').reset_index().to_csv(OUT + 'frp_classes_v2.csv', index=False)
+print('Kaydedildi: frp_test_v2.csv, frp_paired_v2.csv, frp_classes_v2.csv')
