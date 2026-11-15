@@ -40,16 +40,28 @@ def load(path):
 def fig1(g, out):
     y = g.groupby("year")[["raw_modis", "raw_viirs", "intensity"]].sum()
     v = y["raw_viirs"][y["raw_viirs"] > 0]
+    # 2000 holds only November and December (the MODIS record starts on 1 Nov 2000), so it is drawn as a
+    # hollow marker, labelled, and not joined to 2001: a line would suggest a collapse in fire activity.
+    full = y.index >= 2001
     fig, ax = plt.subplots(1, 2, figsize=(14, 4), dpi=150)
-    ax[0].plot(y.index, y["raw_modis"], "o-", color=BLUE, label="MODIS (raw)")
+    ax[0].plot(y.index[full], y["raw_modis"][full], "o-", color=BLUE, label="MODIS (raw)")
     ax[0].plot(v.index, v, "o-", color=ORANGE, label="VIIRS (raw)")
     ax[0].set(title="Before: raw sensor records", xlabel="year", ylabel="Detections per year")
-    ax[0].legend()
-    ax[1].plot(y.index, y["intensity"], "o-", color=GREEN)
+    ax[1].plot(y.index[full], y["intensity"][full], "o-", color=GREEN, label="Harmonized (VIIRS-equivalent)")
     ax[1].set(title="After: harmonized single series", xlabel="year",
               ylabel="Harmonized hotspot count per year")
-    for a in ax:
+    for a, col, colour in ((ax[0], "raw_modis", BLUE), (ax[1], "intensity", GREEN)):
+        if 2000 in y.index:
+            a.plot([2000], [y.loc[2000, col]], "o", mfc="white", mec=colour, mew=1.5,
+                   label="2000: Nov–Dec only (partial year)")
+            a.annotate("Nov–Dec\nonly", (2000, y.loc[2000, col]), textcoords="offset points",
+                       xytext=(-7, 6), ha="right", va="bottom", fontsize=8, color="dimgrey")
         a.axvspan(1999.5, 2002.5, color="grey", alpha=0.2)
+    # left panel: VIIRS fills the upper right, so the legend goes to the empty space above 2003-2011
+    ax[0].legend(loc="upper left", bbox_to_anchor=(0.13, 0.99), fontsize=8)
+    ax[1].legend(loc="upper right", fontsize=8)
+    for a in ax:
+        a.set_xlim(1997.6, 2026)
     ax[1].text(2000.1, ax[1].get_ylim()[1] * 0.93, "Terra only\n(until 3 Jul 2002)",
                va="top", fontsize=9)
     fig.tight_layout()
