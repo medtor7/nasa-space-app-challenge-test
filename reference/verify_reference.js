@@ -1,4 +1,5 @@
 // node reference/verify_reference.js  -> runs the team's analyze() on ../daily_grid_v2.csv
+// AI/SI disclosure: this script was written with the help of AI tools (Claude, Gemini); the analyze() function it runs is the team's reference (reference/JS_fonksiyonu.txt).
 const fs=require('fs');
 const analyze=new Function(fs.readFileSync(__dirname+'/JS_fonksiyonu.txt','utf8')+';return analyze;')();
 function checkFile(csvFile, outJson){

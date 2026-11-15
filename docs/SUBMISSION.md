@@ -1,9 +1,11 @@
 # Submission kit — Burning Activity Calendar
 
+Live app: https://medtor7.github.io/nasa-space-app-challenge-test/ · Code: https://github.com/medtor7/nasa-space-app-challenge-test
+
 Ready-to-paste texts for the NASA Space Apps submission form, the 30-second demo, the 7-slide deck and the judges' questions. Every number below is in `data/` or printed by a script in `tools/`.
 
 ## 1. Project summary (form, ≤ 1 paragraph)
-MODIS has watched fires since 2000; VIIRS, since 2012, sees about 3.6× more of them because its pixels are smaller. As MODIS reaches the end of its mission, more than ten years of fire history (2000–2011) risk becoming incomparable with today. We harmonize 25 years of NASA FIRMS detections over Türkiye and its surroundings into one VIIRS-equivalent daily series on a 0.25° grid: one factor per calendar month, learned on the 2012–2025 overlap, with separate Terra-only factors before Aqua joined on 4 July 2002. Tested on years the factors never saw, the region's monthly totals are predicted with 15–18% error. Seven alternatives, including gradient boosting, were scored the same way; none is better for small areas and the record barely depends on the method (r = 0.996). The web app turns the series into a burning-activity calendar: pick any area, read the fire season week by week, see if this month or this day is unusual compared with 25 years, test the trend, map how often each place burns and print a one-page brief. It runs for any region from FIRMS CSV files, entirely in the browser.
+MODIS has watched fires since 2000; VIIRS, since 2012, sees about 3.6× more of them because its pixels are smaller. As MODIS reaches the end of its mission, more than ten years of fire history (2000–2011) risk becoming incomparable with today. We harmonize 25 years of NASA FIRMS detections over Türkiye and its surroundings into one VIIRS-equivalent daily series on a 0.25° grid: one factor per calendar month, learned on the 2012–2025 overlap, with separate Terra-only factors before Aqua joined on 4 July 2002. Tested on years the factors never saw, the region's monthly totals are predicted with 15–18% error. Nine alternatives — including day/night factors, fire-intensity (FRP) classes and gradient boosting — were scored the same way; none is better for small areas, and which years stand out does not depend on the method (r = 0.996). The web app turns the series into a burning-activity calendar: pick any area, read the fire season week by week, see if this month or this day is unusual compared with 25 years, test the trend, map how often each place burns and print a one-page brief. It runs for any region from FIRMS CSV files, entirely in the browser.
 
 ## 2. 30-second demo video (English, voice-over)
 | Time | Screen | Voice-over |
@@ -11,7 +13,7 @@ MODIS has watched fires since 2000; VIIRS, since 2012, sees about 3.6× more of 
 | 0–6 s | Method panel, before/after figure | "MODIS sees fewer fires than VIIRS. When MODIS retires, ten years of fire history stop being comparable." |
 | 6–14 s | ▶ Demo step 2: 2021 case study, calendar week 31 lights up, map over NASA true-colour image | "We put both sensors on one scale. Here are the 2021 Manavgat megafires, week by week, over NASA's image of that week." |
 | 14–21 s | Step 3: "Aug 2021: 4,149 · median 63", On-this-day bars | "Is this unusual? About sixty-five times the August median of the other years — and the same dates in every other year were far quieter." |
-| 21–27 s | Method → overlap check + method comparison table | "Tested on years it never saw: 18% error; eight methods compared, the result holds." |
+| 21–27 s | Method → overlap check + method comparison table | "Tested on years it never saw: 18% error; ten methods compared, the result holds." |
 | 27–30 s | Layers → Another region; report | "Any region, any agency, one click to a field brief." |
 
 *(Check the August numbers on screen before recording: they depend on the preset area.)*
@@ -48,7 +50,7 @@ Yes, on the raw records: MODIS detections split into low / mid / high fire radia
 For the whole region, 2003–2025: Theil–Sen +94 hotspots/year, Mann–Kendall p = 0.64, so no significant trend. Some sub-regions differ; the app tests any drawn area.
 
 ## 5. AI / SI disclosure (form field)
-Tools used: Claude (Anthropic) and Gemini (Google). They helped write the web interface (`index.html`), the bilingual texts, the Colab data pipeline and the helper scripts in `tools/` (validation re-computation, method comparison, gradient-boosting sensitivity check, ratio-drift test, figures). The team chose the harmonization method, ran the pipeline on the real NASA FIRMS data, and checked every reported number with the scripts (`tools/verify_validation_csv.py`, `reference/verify_reference.js`). No AI-generated images, video or voice were used.
+Tools used: Claude (Anthropic) and Gemini (Google). They helped write the web interface (`index.html`), the bilingual texts, the Colab data pipeline and the helper scripts in `tools/` (validation re-computation, method comparison, gradient-boosting sensitivity check, ratio-drift test, error-by-scale table, figures), and helped design the day/night and FRP-class tests. The team chose the harmonization method, ran the pipeline and these tests on the real NASA FIRMS data, and checked every reported number with the scripts (`tools/verify_validation_csv.py`, `reference/verify_reference.js`). No AI-generated images, video or voice were used.
 
 ## 6. Before you press "Submit"
 - [ ] Demo ≤ 30 s video **or** ≤ 7 slides, in English.
