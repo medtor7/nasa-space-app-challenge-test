@@ -156,6 +156,8 @@ Once 2000–2011 are on the VIIRS scale, the calendar no longer needs MODIS: fro
 The scripts in `tools/` and `reference/` then re-check its outputs independently from the shipped files.
 
 ## Data Files & Tools
+*Requirements for the scripts:* Python 3 with pandas, NumPy, matplotlib and scikit-learn (and SciPy for the FRP cell of the pipeline). The shipped outputs were made with Python 3.13, pandas 3.0, NumPy 2.5 and scikit-learn 1.9; the scripts were also checked with Python 3.11, pandas 2.0, NumPy 1.26 and scikit-learn 1.3, which reproduce every file exactly except the gradient-boosting rows (scikit-learn version: differences of at most 0.1–0.2 points, same conclusions).
+
 - `data/validation_summary_v2.csv` — validation results from the team's Colab (columns `sema, yontem, WAPE_%, bias_%`; Turkish names: `sema` = scheme, `yontem` = method, `tek` = single factor, `aylik` = monthly factors, `us` = power-law experiment).
 - `data/yearly_ratio_v2.csv` — VIIRS ÷ MODIS detections per year (2012–2025), the team's Colab output (columns `year,M,V,oran`: M = MODIS, V = VIIRS detections, `oran` = ratio; ratios rounded to 2 decimals). `tools/make_yearly_ratio.py daily_grid_v2.csv out.csv` regenerates it from the grid; the values agree to rounding.
 - `data/daynight_test_v2.csv`, `data/daynight_paired_v2.csv`, `data/daynight_factors_v2.csv` — day/night test (columns `scheme, method, level, wape, bias`; paired fold differences `mean_diff ± se`; day, night and total factors and night shares per month), written by the save cell after the day/night cell of `pipeline/nasa2.py`.

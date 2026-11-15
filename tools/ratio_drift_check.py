@@ -45,7 +45,8 @@ def main(path, out):
     d = pd.to_datetime(g["date"])
     g["year"], g["month"] = d.dt.year, d.dt.month
     g = g[g.year >= 2012]
-    f = g.groupby("month").apply(lambda x: x.raw_viirs.sum() / x.raw_modis.sum(), include_groups=False)
+    gm = g.groupby("month")[["raw_viirs", "raw_modis"]].sum()
+    f = gm.raw_viirs / gm.raw_modis
     rows = [{"year": str(y), **row(x, f)} for y, x in g.groupby("year")]
     for a, b in [(2012, 2018), (2019, 2025)]:
         rows.append({"year": f"{a}-{b}", **row(g[g.year.between(a, b)], f)})

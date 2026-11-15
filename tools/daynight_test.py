@@ -77,7 +77,8 @@ def ratio(num, den):
 
 def predict(tr, te, col, by_dn, shrink):
     """Regional monthly prediction for the test rows, using MODIS column `col` (M or MT)."""
-    fm = tr.groupby("month").apply(lambda x: ratio(x.V.sum(), x[col].sum()), include_groups=False)
+    gm = tr.groupby("month")[["V", col]].sum()
+    fm = gm.V / gm[col].where(gm[col] > 0)
     pooled = ratio(tr.V.sum(), tr[col].sum())
     fm = fm.fillna(pooled)
     if not by_dn:

@@ -62,7 +62,8 @@ def regional(D):
 
 def monthly_ratio(tr):
     pooled = tr.V.sum() / tr.M.sum()
-    fm = tr.groupby("month").apply(lambda x: x.V.sum() / x.M.sum(), include_groups=False)
+    gm = tr.groupby("month")[["V", "M"]].sum()
+    fm = gm.V / gm.M
     return fm, pooled
 
 
@@ -108,8 +109,8 @@ def s_subregion(tr, te):
     fm_all, pooled = monthly_ratio(tr)
     for s, t in tr.groupby("sub"):
         idx = te["sub"] == s
-        fm = t.groupby("month").apply(lambda x: x.V.sum() / x.M.sum() if x.M.sum() > 0 else np.nan,
-                                      include_groups=False)
+        gm = t.groupby("month")[["V", "M"]].sum()
+        fm = gm.V / gm.M.where(gm.M > 0)
         f = te.loc[idx, "month"].map(fm).fillna(te.loc[idx, "month"].map(fm_all)).fillna(pooled)
         out[idx] = te.loc[idx, "M"] * f
     rest = ~te["sub"].isin(tr["sub"].unique())

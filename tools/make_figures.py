@@ -88,8 +88,8 @@ def scheme1(g):
     m = g.groupby(["year", "month"])[["raw_modis", "raw_viirs"]].sum().reset_index()
     tr, te = m[m.year.between(2012, 2018)].copy(), m[m.year >= 2019].copy()
     f1 = tr.raw_viirs.sum() / tr.raw_modis.sum()
-    fm = tr.groupby("month").apply(lambda d: d.raw_viirs.sum() / d.raw_modis.sum(),
-                                   include_groups=False)
+    gm = tr.groupby("month")[["raw_viirs", "raw_modis"]].sum()
+    fm = gm.raw_viirs / gm.raw_modis
     te["single"] = te.raw_modis * f1
     te["monthly"] = te.raw_modis * te.month.map(fm)
     te["date"] = pd.to_datetime(dict(year=te.year, month=te.month, day=1))
