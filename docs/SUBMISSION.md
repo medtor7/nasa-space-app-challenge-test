@@ -50,5 +50,5 @@ Tools used: Claude (Anthropic) and Gemini (Google). They helped write the web in
 - [ ] AI/SI disclosure pasted (section 5).
 - [ ] NASA data named: FIRMS (MODIS_SP, VIIRS_SNPP_SP), GIBS.
 - [ ] `libs/world.geojson` source confirmed in README (see License section).
-- [ ] The Colab pipeline (`nasa2.py`) added under `pipeline/` without the FIRMS key, if you want the grid to be reproducible from raw data.
+- [x] The Colab pipeline is in `pipeline/nasa2.py` (the FIRMS key is read from Colab Secrets, never stored).
 - [ ] All team members registered at the same local event; form submitted before the deadline.

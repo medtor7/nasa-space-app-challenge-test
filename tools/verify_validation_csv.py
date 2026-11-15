@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Re-compute data/validation_summary_v2.csv from daily_grid_v2.csv and compare.
 
-Only the two methods that the product uses are checked ("tek" = single factor,
-"aylik" = monthly factor); other rows of the CSV (experiments) are ignored.
+All three methods of the CSV are checked: "tek" = single factor, "aylik" = monthly factor (used
+by the product) and "us" = the team's power-law experiment (12 month coefficients + one shared
+exponent, fitted by least squares on log1p of the regional monthly totals, with smearing; same
+definition as pipeline/nasa2.py).
 
 Definitions (all on monthly totals of the whole region):
     factor  = sum(VIIRS) / sum(MODIS) over the training years - one factor for
@@ -24,6 +26,8 @@ AI/SI disclosure: this script was written with the help of Claude (Anthropic).
 import csv
 import re
 import sys
+
+import numpy as np
 from collections import defaultdict
 
 grid = sys.argv[1] if len(sys.argv) > 1 else "daily_grid_v2.csv"
@@ -50,16 +54,27 @@ def score(pairs):
     return 100 * err / obs, 100 * (pred - obs) / obs
 
 
+def fit_us(years):
+    rows = [(m, MOD[(y, m)], VII[(y, m)]) for y in years for m in range(1, 13)]
+    X = np.array([[1.0 if m == k else 0.0 for k in range(1, 13)] + [np.log1p(M)] for m, M, _ in rows])
+    y = np.log1p(np.array([V for _, _, V in rows]))
+    beta = np.linalg.lstsq(X, y, rcond=None)[0]
+    smear = np.mean(np.exp(y - X @ beta))
+    return lambda m, M: max(np.exp(beta[m - 1] + beta[12] * np.log1p(M)) * smear - 1, 0.0)
+
+
 def evaluate(folds):
-    """folds = [(train_years, test_years), ...] -> {"tek": (wape, bias), "aylik": (wape, bias)}"""
-    tek, aylik = [], []
+    """folds = [(train_years, test_years), ...] -> {"tek": (wape, bias), "aylik": ..., "us": ...}"""
+    tek, aylik, us = [], [], []
     for train, test in folds:
         single, monthly = fit(train)
+        power = fit_us(train)
         for y in test:
             for m in range(1, 13):
                 tek.append((VII[(y, m)], MOD[(y, m)] * single))
                 aylik.append((VII[(y, m)], MOD[(y, m)] * monthly[m]))
-    return {"tek": score(tek), "aylik": score(aylik)}
+                us.append((VII[(y, m)], power(m, MOD[(y, m)])))
+    return {"tek": score(tek), "aylik": score(aylik), "us": score(us)}
 
 
 years = list(range(2012, 2026))
@@ -74,7 +89,9 @@ checked = 0
 with open(table, newline="") as f:
     for row in csv.DictReader(f):
         method = row["yontem"].strip().lower()
-        if method not in ("tek", "aylik"):
+        if method not in ("tek", "aylik", "us"):
+            print("UNKNOWN METHOD:", method)
+            bad += 1
             continue
         num = re.match(r"\s*(\d+)", row["sema"])
         if not num or num.group(1) not in mine:
